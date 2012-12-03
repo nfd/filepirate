@@ -1,0 +1,4 @@
+syntax: glob
+filepirate
+*.o
+mem.txt
