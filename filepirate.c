@@ -379,6 +379,8 @@ static struct candidate_list *candidate_list_create(void)
 static void candidate_list_reset(struct candidate_list *list)
 {
    for (struct candidate *iter = list->best; iter; iter = iter->worse) {
+      // Only for debugging
+      // iter->dirname = iter->filename = NULL;
       iter->goodness = -1;
    }
 }
@@ -435,7 +437,8 @@ static void candidate_list_add(struct candidate_list *list, char *dirname, char 
 static void candidate_list_dump(struct candidate_list *list)
 {
    for (struct candidate *iter = list->best; iter; iter = iter->worse) {
-      printf("%s/%s (%d)\n", iter->dirname, iter->filename, iter->goodness);
+      if (iter->goodness > -1)
+         printf("%s/%s (%d)\n", iter->dirname, iter->filename, iter->goodness);
    }
 }
 
