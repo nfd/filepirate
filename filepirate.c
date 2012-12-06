@@ -17,7 +17,7 @@
 
 /* Memory allocation attempts to increase by a power of 2 each time, 
  * stopping at MEM_MAX, which is 64 megabytes by default.
-*/
+ */
 #define MEM_MIN (1 * 1024 * 1024)
 #define MEM_MAX (64 * 1024 * 1024)
 #define ERROR printf
@@ -37,7 +37,7 @@
  * ...       ...         More filenames
  * 1 byte    0           Final extra nul indicates a new directory name
  * 1+ bytes  dirname     Directory name, null terminated
-*/
+ */
 
 #define DIRENT_HEADER_SIZE (sizeof(unsigned int) + sizeof(unsigned int))
 
@@ -53,8 +53,8 @@ static struct {
 	uint8_t *files;               // When initialised, points to the main pool.
 	uint8_t *files_end;
 	struct memory_pool main_pool;
-   char **positive_filter;
-   char **negative_filter;
+	char **positive_filter;
+	char **negative_filter;
 
 	bool term_modified;
 	int term_fd;
@@ -150,22 +150,22 @@ static inline void write_uint (uintptr_t index, unsigned int val)
 
 static inline bool passes_filter(char *name)
 {
-   if (fp.positive_filter) {
-      for (char **filter = fp.positive_filter; *filter; filter++) {
-         if (fnmatch(*filter, name, 0) == 0) {
-            return true;
-         }
-      }
-      return false;
-   }
-   if (fp.negative_filter) {
-      for (char **filter = fp.negative_filter; *filter; filter++) {
-         if (fnmatch(*filter, name, 0) == 0) {
-            return false;
-         }
-      }
-   }
-   return true;
+	if (fp.positive_filter) {
+		for (char **filter = fp.positive_filter; *filter; filter++) {
+			if (fnmatch(*filter, name, 0) == 0) {
+				return true;
+			}
+		}
+		return false;
+	}
+	if (fp.negative_filter) {
+		for (char **filter = fp.negative_filter; *filter; filter++) {
+			if (fnmatch(*filter, name, 0) == 0) {
+				return false;
+			}
+		}
+	}
+	return true;
 }
 static uintptr_t fp_init_dir_recurse(void)
 {
@@ -206,12 +206,12 @@ static uintptr_t fp_init_dir_recurse(void)
 
 		} else if (node->fts_info & FTS_F) {
 			//printf("file %x %s\n", fp.main_pool.next, node->fts_name);
-         if (passes_filter(node->fts_name)) {
-            tmp = alloc(sizeof(unsigned int) + node->fts_namelen + 1);
-            write_uint(tmp, node->fts_namelen + 1);
-            tmp += sizeof(unsigned int);
-            strcpy((char *)get_ptr(tmp), node->fts_name);
-         }
+			if (passes_filter(node->fts_name)) {
+				tmp = alloc(sizeof(unsigned int) + node->fts_namelen + 1);
+				write_uint(tmp, node->fts_namelen + 1);
+				tmp += sizeof(unsigned int);
+				strcpy((char *)get_ptr(tmp), node->fts_name);
+			}
 		}
 	}
 
@@ -260,10 +260,10 @@ static bool fp_init_dir(char *dirname)
 
 static void fp_deinit_dir(void)
 {
-   if(fp.root_dirname) {
-      free(fp.root_dirname);
-      fp.root_dirname = NULL;
-   }
+	if(fp.root_dirname) {
+		free(fp.root_dirname);
+		fp.root_dirname = NULL;
+	}
 }
 
 static void term_reset(void)
@@ -345,109 +345,109 @@ static inline bool fp_strstr(unsigned int dirname_len, char *dirname,
 #define MAX_CANDIDATES 10
 
 struct candidate {
-   char *dirname;
-   char *filename;
-   int goodness;
+	char *dirname;
+	char *filename;
+	int goodness;
 
-   struct candidate *better, *worse;
+	struct candidate *better, *worse;
 };
 
 struct candidate_list {
-   struct candidate *best;
-   struct candidate *worst;
+	struct candidate *best;
+	struct candidate *worst;
 };
 
 static struct candidate_list *candidate_list_create(void)
 {
-   int i;
-   struct candidate_list *list;
+	int i;
+	struct candidate_list *list;
 
-   list = malloc(sizeof(*list)); assert(list);
-   list->best = list->worst = NULL;
+	list = malloc(sizeof(*list)); assert(list);
+	list->best = list->worst = NULL;
 
-   for (i = 0; i < MAX_CANDIDATES; i++) {
-      struct candidate *new_candidate = malloc(sizeof(struct candidate)); assert(new_candidate);
-      new_candidate->goodness = -1;
+	for (i = 0; i < MAX_CANDIDATES; i++) {
+		struct candidate *new_candidate = malloc(sizeof(struct candidate)); assert(new_candidate);
+		new_candidate->goodness = -1;
 
-      if (list->worst == NULL) {
-         assert(list->best == NULL);
-         list->best = list->worst = new_candidate;
-         new_candidate->better = new_candidate->worse = NULL;
-      } else {
-         list->worst->worse = new_candidate;
-         new_candidate->better = list->worst;
-         new_candidate->worse = NULL;
-         list->worst = new_candidate;
-      }
-   }
+		if (list->worst == NULL) {
+			assert(list->best == NULL);
+			list->best = list->worst = new_candidate;
+			new_candidate->better = new_candidate->worse = NULL;
+		} else {
+			list->worst->worse = new_candidate;
+			new_candidate->better = list->worst;
+			new_candidate->worse = NULL;
+			list->worst = new_candidate;
+		}
+	}
 
-   return list;
+	return list;
 }
 
 static void candidate_list_reset(struct candidate_list *list)
 {
-   for (struct candidate *iter = list->best; iter; iter = iter->worse) {
-      // Only for debugging
-      // iter->dirname = iter->filename = NULL;
-      iter->goodness = -1;
-   }
+	for (struct candidate *iter = list->best; iter; iter = iter->worse) {
+		// Only for debugging
+		// iter->dirname = iter->filename = NULL;
+		iter->goodness = -1;
+	}
 }
 
 static void candidate_list_destroy(struct candidate_list *list)
 {
-   while(list->best) {
-      struct candidate *tmp = list->best->worse;
-      free(list->best);
-      list->best = tmp;
-   }
+	while(list->best) {
+		struct candidate *tmp = list->best->worse;
+		free(list->best);
+		list->best = tmp;
+	}
 
-   free(list);
+	free(list);
 }
 
 static void candidate_list_add(struct candidate_list *list, char *dirname, char *filename, int goodness)
 {
-   if(goodness >= list->worst->goodness) {
-      /* FIXME: Binary search better */
-      struct candidate *new_candidate = list->worst;
-      list->worst->better->worse = NULL;
-      list->worst = list->worst->better;
-      new_candidate->dirname = dirname;
-      new_candidate->filename = filename;
-      new_candidate->goodness = goodness;
+	if(goodness >= list->worst->goodness) {
+		/* FIXME: Binary search better */
+		struct candidate *new_candidate = list->worst;
+		list->worst->better->worse = NULL;
+		list->worst = list->worst->better;
+		new_candidate->dirname = dirname;
+		new_candidate->filename = filename;
+		new_candidate->goodness = goodness;
 
-      for (struct candidate *iter = list->best; iter; iter = iter->worse) {
-         if (goodness >= iter->goodness) {
-            if (iter == list->best) {
-               /* Insert before "iter", at head of list */
-               new_candidate->worse = list->best;
-               new_candidate->better = NULL;
-               list->best->better = new_candidate;
-               list->best = new_candidate;
-            } else {
-               /* Insert before "iter":
-                * A <new> <iter>
-                * New's worse -> A's worse
-                * New's better -> iter's better
-                * A's worse -> new
-                * iter's better -> new*/
-               struct candidate *better = iter->better;
-               new_candidate->worse = better->worse;
-               new_candidate->better = iter->better;
-               better->worse = new_candidate;
-               iter->better = new_candidate;
-            }
-            break;
-         }
-      }
-   }
+		for (struct candidate *iter = list->best; iter; iter = iter->worse) {
+			if (goodness >= iter->goodness) {
+				if (iter == list->best) {
+					/* Insert before "iter", at head of list */
+					new_candidate->worse = list->best;
+					new_candidate->better = NULL;
+					list->best->better = new_candidate;
+					list->best = new_candidate;
+				} else {
+					/* Insert before "iter":
+					 * A <new> <iter>
+					 * New's worse -> A's worse
+					 * New's better -> iter's better
+					 * A's worse -> new
+					 * iter's better -> new*/
+					struct candidate *better = iter->better;
+					new_candidate->worse = better->worse;
+					new_candidate->better = iter->better;
+					better->worse = new_candidate;
+					iter->better = new_candidate;
+				}
+				break;
+			}
+		}
+	}
 }
 
 static void candidate_list_dump(struct candidate_list *list)
 {
-   for (struct candidate *iter = list->best; iter; iter = iter->worse) {
-      if (iter->goodness > -1)
-         printf("%s/%s (%d)\n", iter->dirname, iter->filename, iter->goodness);
-   }
+	for (struct candidate *iter = list->best; iter; iter = iter->worse) {
+		if (iter->goodness > -1)
+			printf("%s/%s (%d)\n", iter->dirname, iter->filename, iter->goodness);
+	}
 }
 
 static void filepirate_interactive_test(void)
@@ -459,9 +459,9 @@ static void filepirate_interactive_test(void)
 	bool new_directory = true; // Was a new directory entered?
 	unsigned int dirname_len, filename_len;
 	char *dirname = NULL;
-   struct candidate_list *candidates;
+	struct candidate_list *candidates;
 
-   candidates = candidate_list_create();
+	candidates = candidate_list_create();
 
 	while (true) {
 		unsigned int c;
@@ -473,7 +473,7 @@ static void filepirate_interactive_test(void)
 		candidate_list_reset(candidates);
 
 		for(file_count = 0; file_count < 20 && files < (char *)fp.files_end; ) {
-         //printf("%p vs %p\n", files, fp.files_end);
+			//printf("%p vs %p\n", files, fp.files_end);
 			if (new_directory) {
 				//printf("read directory %lx\n", files - (char *)fp.main_pool.start);
 				dirname_len = *(unsigned int *)files;
@@ -497,7 +497,7 @@ static void filepirate_interactive_test(void)
 				if (fp_strstr(dirname_len - 1, dirname, filename_len - 1, files, buffer_ptr - 1, buffer, &contig) == true) {
 					if(contig >= previous_best_contig) {
 						//file_count += 1;
-                  candidate_list_add(candidates, dirname, files, contig);
+						candidate_list_add(candidates, dirname, files, contig);
 						//printf("%s/%s %d\n", dirname, files, contig);
 						previous_best_contig = contig;
 					}
@@ -506,7 +506,7 @@ static void filepirate_interactive_test(void)
 			}
 		}
 
-      candidate_list_dump(candidates);
+		candidate_list_dump(candidates);
 		printf("\n> %s", buffer);
 		fflush(stdout);
 
@@ -524,10 +524,10 @@ static void filepirate_interactive_test(void)
 			buffer[buffer_ptr ++] = c;
 			buffer[buffer_ptr] = '\0';
 		}
-		
+
 	}
 
-   candidate_list_destroy(candidates);
+	candidate_list_destroy(candidates);
 }
 
 /* FIXME: Support directory filtering as well. Dodgy option: include both.
@@ -535,16 +535,16 @@ static void filepirate_interactive_test(void)
  * strstr. */
 
 char *positive_filter[] = {
-   "*.c",
-   "*.h",
-   "*.cpp",
-   "*.cxx",
-   NULL};
+	"*.c",
+	"*.h",
+	"*.cpp",
+	"*.cxx",
+	NULL};
 
 char *negative_filter[] = {
-   "*.o",
-   "*.ppm",
-   NULL
+	"*.o",
+	"*.ppm",
+	NULL
 };
 
 int main(int argc, char **argv)
@@ -560,12 +560,12 @@ int main(int argc, char **argv)
 	atexit(term_reset);
 	term_init();
 
-   fp.positive_filter = positive_filter;
-   fp.negative_filter = negative_filter;
+	fp.positive_filter = positive_filter;
+	fp.negative_filter = negative_filter;
 	fp_init_dir(argv[1]);
 
 	filepirate_interactive_test();
-   fp_deinit_dir();
+	fp_deinit_dir();
 
 	pool_free(&fp.main_pool);
 
