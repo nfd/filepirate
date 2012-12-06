@@ -293,17 +293,25 @@ static void term_init(void)
 }
 
 /* Non-contiguous matching across two strings (directory name and file name) */
-static inline bool fp_strstr(char *dirname, char *filename, char *needle, int *num_contiguous)
+/* Note the lengths are strlen() lengths, i.e. don't include the terminating
+ * null, unlike the lengths stored in the directory structure in memory. */
+
+// We search backwards in order to match as much on filename as possible
+// before dirname, because filename is more important
+static inline bool fp_strstr(unsigned int dirname_len, char *dirname,
+		unsigned int filename_len, char *filename,
+		unsigned int needle_len, char *needle,
+		int *num_contiguous)
 {
-	int idx_hay = 0, idx_needle = 0, contig = 0;
-	char *hay = dirname;
+	int idx_hay = filename_len, idx_needle = needle_len, contig = 0;
+	char *hay = filename;
 	int last_match_idx = -1;
 
 	while (true) {
-		if (hay[idx_hay] == '\0') {
-			if (hay == dirname) {
-				hay = filename;
-				idx_hay = 0;
+		if (idx_hay == -1) {
+			if (hay == filename) {
+				hay = dirname;
+				idx_hay = dirname_len;
 				last_match_idx = -1;
 			} else {
 				/* End of filename -- we're done */
@@ -311,27 +319,27 @@ static inline bool fp_strstr(char *dirname, char *filename, char *needle, int *n
 			}
 		}
 
-		if (needle[idx_needle] == '\0') {
+		if (idx_needle == -1) {
 			/* Matched it all? */
 			break;
 		}
 
 		if (hay[idx_hay] == needle[idx_needle]) {
-			idx_needle ++;
+			idx_needle --;
 
-			if (idx_hay - 1 == last_match_idx)
+			if (idx_hay + 1 == last_match_idx)
 				contig ++;
 
 			last_match_idx = idx_hay;
 		}
 
-		idx_hay ++;
+		idx_hay --;
 	}
 
 	if (num_contiguous)
 		*num_contiguous = contig;
 
-	return needle[idx_needle] == '\0';
+	return idx_needle == -1;
 }
 
 #define MAX_CANDIDATES 10
@@ -449,7 +457,7 @@ static void filepirate_interactive_test(void)
 	char *files;
 	int file_count = 0;
 	bool new_directory = true; // Was a new directory entered?
-	unsigned int str_len;
+	unsigned int dirname_len, filename_len;
 	char *dirname = NULL;
    struct candidate_list *candidates;
 
@@ -462,32 +470,31 @@ static void filepirate_interactive_test(void)
 		new_directory = true;
 		files = (char *)fp.files;
 		//printf("files %p (pool %p)\n", files, fp.main_pool.start);
-      candidate_list_reset(candidates);
+		candidate_list_reset(candidates);
 
 		for(file_count = 0; file_count < 20 && files < (char *)fp.files_end; ) {
          //printf("%p vs %p\n", files, fp.files_end);
 			if (new_directory) {
 				//printf("read directory %lx\n", files - (char *)fp.main_pool.start);
-				str_len = *(unsigned int *)files;
-				assert(str_len < 1000);
+				dirname_len = *(unsigned int *)files;
 				files += sizeof(unsigned int);
 				//printf("directory name %s\n", files);
 				dirname = files;
-				files += str_len;
+				files += dirname_len;
 				//printf("files pointer moved to %lx\n", files - (char *)fp.main_pool.start);
 				new_directory = false;
 			}
 
-			str_len = *(unsigned int *)files;
+			filename_len = *(unsigned int *)files;
 			files += sizeof(unsigned int);
-			if (str_len == 0) {
+			if (filename_len == 0) {
 				// End of this directory 
 				//printf("new directory\n");
 				files += 1;
 				new_directory = true;
 			} else {
 				int contig;
-				if (fp_strstr(dirname, files, buffer, &contig) == true) {
+				if (fp_strstr(dirname_len - 1, dirname, filename_len - 1, files, buffer_ptr - 1, buffer, &contig) == true) {
 					if(contig >= previous_best_contig) {
 						//file_count += 1;
                   candidate_list_add(candidates, dirname, files, contig);
@@ -495,7 +502,7 @@ static void filepirate_interactive_test(void)
 						previous_best_contig = contig;
 					}
 				}
-				files += str_len;
+				files += filename_len;
 			}
 		}
 
