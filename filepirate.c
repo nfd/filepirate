@@ -173,6 +173,8 @@ static uintptr_t fp_init_dir_recurse(void)
 	uintptr_t first = 0;
 	uintptr_t dirent_start = 0;
 	uintptr_t tmp = 0;
+	bool dir_written = false;
+	FTSENT *node;
 
 	first = fp.main_pool.next;
 
@@ -184,34 +186,41 @@ static uintptr_t fp_init_dir_recurse(void)
 		return 0;
 	}
 
-	FTSENT *node;
 	while ((node = fts_read(tree))) {
 		if (node->fts_level > 0 && node->fts_name[0] == '.')
 			fts_set(tree, node, FTS_SKIP);
 		else if (node->fts_info & FTS_D) {
 			/* Pre-order directory */
-			if (dirent_start) {
-				/* Finish off the previous directory with an extra nul */
-				//printf("Finish %x\n", fp.main_pool.next);
-				tmp = alloc(sizeof(unsigned int) + 1);
-				write_uint(tmp, 0);
-				tmp += sizeof(unsigned int);
-				*((char *)get_ptr(tmp)) = '\0';
-			}
-			//printf("dirent %x\n", fp.main_pool.next);
-			dirent_start = alloc(sizeof(unsigned int) + node->fts_pathlen + 1);
-			write_uint(dirent_start, node->fts_pathlen + 1);
-			dirent_start += sizeof(unsigned int);
-			strcpy((char *)get_ptr(dirent_start), node->fts_path);
+			dir_written = false;
+		} else if (node->fts_info & FTS_DP) {
+			//printf("post-order directory\n");
+			dir_written = false;
+		} else if ((node->fts_info & FTS_F) && passes_filter(node->fts_name)) {
+			if (dir_written == false) {
+				FTSENT *parent = node->fts_parent;
+				if (dirent_start) {
+					/* Finish off the previous directory with an extra nul */
+					//printf("end previous directory\n");
+					tmp = alloc(sizeof(unsigned int) + 1);
+					write_uint(tmp, 0);
+					tmp += sizeof(unsigned int);
+					*((char *)get_ptr(tmp)) = '\0';
+				}
+				//printf("write dirent %lx %s (%x) %s\n", fp.main_pool.next, parent->fts_path, parent->fts_pathlen, node->fts_path);
+				dirent_start = alloc(sizeof(unsigned int) + parent->fts_pathlen + 1);
+				write_uint(dirent_start, parent->fts_pathlen + 1);
+				dirent_start += sizeof(unsigned int);
+				strncpy((char *)get_ptr(dirent_start), parent->fts_path, parent->fts_pathlen);
+				*((char *)(get_ptr(dirent_start) + parent->fts_pathlen + 1)) = '\0';
 
-		} else if (node->fts_info & FTS_F) {
-			//printf("file %x %s\n", fp.main_pool.next, node->fts_name);
-			if (passes_filter(node->fts_name)) {
-				tmp = alloc(sizeof(unsigned int) + node->fts_namelen + 1);
-				write_uint(tmp, node->fts_namelen + 1);
-				tmp += sizeof(unsigned int);
-				strcpy((char *)get_ptr(tmp), node->fts_name);
+				dir_written = true;
 			}
+
+			//printf("file %lx %s\n", fp.main_pool.next, node->fts_name);
+			tmp = alloc(sizeof(unsigned int) + node->fts_namelen + 1);
+			write_uint(tmp, node->fts_namelen + 1);
+			tmp += sizeof(unsigned int);
+			strcpy((char *)get_ptr(tmp), node->fts_name);
 		}
 	}
 
@@ -301,11 +310,11 @@ static void term_init(void)
 static inline bool fp_strstr(unsigned int dirname_len, char *dirname,
 		unsigned int filename_len, char *filename,
 		unsigned int needle_len, char *needle,
-		int *num_contiguous)
+		int *goodness)
 {
-	int idx_hay = filename_len, idx_needle = needle_len, contig = 0;
+	int idx_hay = filename_len, idx_needle = needle_len, contig = 0, contig_filename = 0;
 	char *hay = filename;
-	int last_match_idx = -1;
+	int last_match_idx = idx_hay;
 
 	while (true) {
 		if (idx_hay == -1) {
@@ -313,6 +322,9 @@ static inline bool fp_strstr(unsigned int dirname_len, char *dirname,
 				hay = dirname;
 				idx_hay = dirname_len;
 				last_match_idx = -1;
+
+				contig_filename = contig;
+				contig = 0;
 			} else {
 				/* End of filename -- we're done */
 				break;
@@ -336,8 +348,9 @@ static inline bool fp_strstr(unsigned int dirname_len, char *dirname,
 		idx_hay --;
 	}
 
-	if (num_contiguous)
-		*num_contiguous = contig;
+	if (goodness) {
+		*goodness = contig_filename + contig;
+	}
 
 	return idx_needle == -1;
 }
@@ -465,7 +478,7 @@ static void filepirate_interactive_test(void)
 
 	while (true) {
 		unsigned int c;
-		int previous_best_contig = -1;
+		int previous_best_goodness = -1;
 
 		new_directory = true;
 		files = (char *)fp.files;
@@ -493,13 +506,13 @@ static void filepirate_interactive_test(void)
 				files += 1;
 				new_directory = true;
 			} else {
-				int contig;
-				if (fp_strstr(dirname_len - 1, dirname, filename_len - 1, files, buffer_ptr - 1, buffer, &contig) == true) {
-					if(contig >= previous_best_contig) {
+				int goodness;
+				if (fp_strstr(dirname_len - 1, dirname, filename_len - 1, files, buffer_ptr - 1, buffer, &goodness) == true) {
+					if(goodness >= previous_best_goodness) {
 						//file_count += 1;
-						candidate_list_add(candidates, dirname, files, contig);
+						candidate_list_add(candidates, dirname, files, goodness);
 						//printf("%s/%s %d\n", dirname, files, contig);
-						previous_best_contig = contig;
+						previous_best_goodness = goodness;
 					}
 				}
 				files += filename_len;
