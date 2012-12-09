@@ -342,7 +342,7 @@ static inline bool fp_strstr(unsigned int dirname_len, char *dirname,
 	return idx_needle == -1;
 }
 
-#define MAX_CANDIDATES 10
+#define MAX_CANDIDATES 30
 
 struct candidate {
 	char *dirname;
