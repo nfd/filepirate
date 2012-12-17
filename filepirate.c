@@ -318,7 +318,7 @@ static inline bool fp_strstr(unsigned int dirname_len, char *dirname,
 
 	while (true) {
 		if (idx_hay == -1) {
-			if (hay == filename) {
+			if (hay == filename && dirname_len > 0) {
 				hay = dirname;
 				idx_hay = dirname_len;
 				last_match_idx = -1;
@@ -455,6 +455,11 @@ static void candidate_list_add(struct candidate_list *list, char *dirname, char 
 	}
 }
 
+/* Extra, possibly expensive, filters to move things around in the candidate list. */
+static void candidate_list_postprocess(struct candidate_list *list)
+{
+}
+
 static void candidate_list_dump(struct candidate_list *list)
 {
 	for (struct candidate *iter = list->best; iter; iter = iter->worse) {
@@ -465,13 +470,15 @@ static void candidate_list_dump(struct candidate_list *list)
 
 static void filepirate_interactive_test(void)
 {
-	char buffer[80] = {0};
-	int buffer_ptr = 0;
+	char in_buffer[80] = {0};
+	char search_buffer[80] = {0};
+	int buffer_ptr = 0, search_buffer_ptr = 0;
 	char *files;
 	int file_count = 0;
 	bool new_directory = true; // Was a new directory entered?
 	unsigned int dirname_len, filename_len;
 	char *dirname = NULL;
+   bool search_in_dirs = false;
 	struct candidate_list *candidates;
 
 	candidates = candidate_list_create();
@@ -507,7 +514,7 @@ static void filepirate_interactive_test(void)
 				new_directory = true;
 			} else {
 				int goodness;
-				if (fp_strstr(dirname_len - 1, dirname, filename_len - 1, files, buffer_ptr - 1, buffer, &goodness) == true) {
+				if (fp_strstr(search_in_dirs ? dirname_len - 1 : 0, dirname, filename_len - 1, files, search_buffer_ptr - 1, search_buffer, &goodness) == true) {
 					if(goodness >= previous_best_goodness) {
 						//file_count += 1;
 						candidate_list_add(candidates, dirname, files, goodness);
@@ -519,8 +526,9 @@ static void filepirate_interactive_test(void)
 			}
 		}
 
+      candidate_list_postprocess(candidates);
 		candidate_list_dump(candidates);
-		printf("\n> %s", buffer);
+		printf("\n> %s", in_buffer);
 		fflush(stdout);
 
 		c = getchar();
@@ -531,13 +539,22 @@ static void filepirate_interactive_test(void)
 		else if (c == 127) {
 			if (buffer_ptr > 0) {
 				buffer_ptr --;
-				buffer[buffer_ptr] = '\0';
+				in_buffer[buffer_ptr] = '\0';
 			}
 		} else {
-			buffer[buffer_ptr ++] = c;
-			buffer[buffer_ptr] = '\0';
+			in_buffer[buffer_ptr ++] = c;
+			in_buffer[buffer_ptr] = '\0';
 		}
 
+      search_in_dirs = false;
+      search_buffer_ptr = 0;
+      for(int i = 0; i <= buffer_ptr; i++) {
+         if (in_buffer[i] == '/') {
+            search_in_dirs = true;
+         } else {
+            search_buffer[search_buffer_ptr++] = in_buffer[i];
+         }
+      }
 	}
 
 	candidate_list_destroy(candidates);
