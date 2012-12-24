@@ -1,4 +1,6 @@
 CFLAGS = -g -Wall -Werror -std=c99
 
-filepirate: filepirate.o
+cfilepirate_test: cfilepirate_test.o cfilepirate.o
+	$(CC) -o $@ $+
+
 

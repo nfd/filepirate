@@ -3,7 +3,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fts.h>
-#include <assert.h>
 #include <stdint.h>   /* god these includes are boring */
 #include <stdbool.h>
 #include <stdlib.h>
@@ -12,8 +11,10 @@
 #include <stdio.h>    /* stdio: a meet-up for randy programmers */
 #include <errno.h>    /* someone should make everythingposix.h */
 #include <string.h>   /* probably take 100 years to compile though */
-#include <termios.h>
 #include <fnmatch.h>
+#include <assert.h>
+
+#include "cfilepirate.h"
 
 /* Memory allocation attempts to increase by a power of 2 each time, 
  * stopping at MEM_MAX, which is 64 megabytes by default.
@@ -22,6 +23,7 @@
 #define MEM_MAX (64 * 1024 * 1024)
 #define ERROR printf
 #define INFO  printf
+#define MAX_CANDIDATES 30
 
 /* Structure in the memory pool. All indices are relative to the start of the pool.
  * So to convert an index to a pointer: ptr = (uint8_t *)pool_start + index.
@@ -56,9 +58,6 @@ static struct {
 	char **positive_filter;
 	char **negative_filter;
 
-	bool term_modified;
-	int term_fd;
-	struct termios term_settings;
 } fp;
 
 /* Memory pool functions */
@@ -239,7 +238,7 @@ static uintptr_t fp_init_dir_recurse(void)
 	return first;
 }
 
-static bool fp_init_dir(char *dirname)
+bool fp_init_dir(char *dirname)
 {
 	int cwd;
 	uintptr_t files_index;
@@ -267,38 +266,12 @@ static bool fp_init_dir(char *dirname)
 	return files_index != 0;
 }
 
-static void fp_deinit_dir(void)
+void fp_deinit_dir(void)
 {
 	if(fp.root_dirname) {
 		free(fp.root_dirname);
 		fp.root_dirname = NULL;
 	}
-}
-
-static void term_reset(void)
-{
-	if (fp.term_modified) {
-		tcsetattr(fp.term_fd, TCSADRAIN, &fp.term_settings);
-	}
-}
-
-static void term_init(void)
-{
-	struct termios new_settings;
-	fp.term_fd = 0;
-
-	tcgetattr(fp.term_fd, &fp.term_settings);
-	new_settings = fp.term_settings;
-
-	new_settings.c_lflag &= ~ICANON;
-	new_settings.c_lflag &= ~ECHO;
-	new_settings.c_cc[VMIN] = 1;
-	new_settings.c_cc[VTIME] = 0;
-	if (tcsetattr(fp.term_fd, TCSANOW, &new_settings)) {
-		ERROR("term_init");
-	}
-
-	fp.term_modified = true;
 }
 
 /* Non-contiguous matching across two strings (directory name and file name) */
@@ -355,22 +328,7 @@ static inline bool fp_strstr(unsigned int dirname_len, char *dirname,
 	return idx_needle == -1;
 }
 
-#define MAX_CANDIDATES 30
-
-struct candidate {
-	char *dirname;
-	char *filename;
-	int goodness;
-
-	struct candidate *better, *worse;
-};
-
-struct candidate_list {
-	struct candidate *best;
-	struct candidate *worst;
-};
-
-static struct candidate_list *candidate_list_create(void)
+struct candidate_list *fp_candidate_list_create(void)
 {
 	int i;
 	struct candidate_list *list;
@@ -406,7 +364,7 @@ static void candidate_list_reset(struct candidate_list *list)
 	}
 }
 
-static void candidate_list_destroy(struct candidate_list *list)
+void fp_candidate_list_destroy(struct candidate_list *list)
 {
 	while(list->best) {
 		struct candidate *tmp = list->best->worse;
@@ -455,132 +413,66 @@ static void candidate_list_add(struct candidate_list *list, char *dirname, char 
 	}
 }
 
-static void candidate_list_dump(struct candidate_list *list)
+bool fp_get_candidates(char *buffer, int buffer_ptr, struct candidate_list *candidates)
 {
-	for (struct candidate *iter = list->best; iter; iter = iter->worse) {
-		if (iter->goodness > -1)
-			printf("%s/%s (%d)\n", iter->dirname, iter->filename, iter->goodness);
-	}
-}
-
-static void filepirate_interactive_test(void)
-{
-	char buffer[80] = {0};
-	int buffer_ptr = 0;
 	char *files;
 	int file_count = 0;
+	int previous_best_goodness = -1;
 	bool new_directory = true; // Was a new directory entered?
 	unsigned int dirname_len, filename_len;
 	char *dirname = NULL;
-	struct candidate_list *candidates;
 
-	candidates = candidate_list_create();
+	new_directory = true;
+	files = (char *)fp.files;
+	candidate_list_reset(candidates);
 
-	while (true) {
-		unsigned int c;
-		int previous_best_goodness = -1;
-
-		new_directory = true;
-		files = (char *)fp.files;
-		//printf("files %p (pool %p)\n", files, fp.main_pool.start);
-		candidate_list_reset(candidates);
-
-		for(file_count = 0; file_count < 20 && files < (char *)fp.files_end; ) {
-			//printf("%p vs %p\n", files, fp.files_end);
-			if (new_directory) {
-				//printf("read directory %lx\n", files - (char *)fp.main_pool.start);
-				dirname_len = *(unsigned int *)files;
-				files += sizeof(unsigned int);
-				//printf("directory name %s\n", files);
-				dirname = files;
-				files += dirname_len;
-				//printf("files pointer moved to %lx\n", files - (char *)fp.main_pool.start);
-				new_directory = false;
-			}
-
-			filename_len = *(unsigned int *)files;
+	for(file_count = 0; file_count < 20 && files < (char *)fp.files_end; ) {
+		if (new_directory) {
+			dirname_len = *(unsigned int *)files;
 			files += sizeof(unsigned int);
-			if (filename_len == 0) {
-				// End of this directory 
-				//printf("new directory\n");
-				files += 1;
-				new_directory = true;
-			} else {
-				int goodness;
-				if (fp_strstr(dirname_len - 1, dirname, filename_len - 1, files, buffer_ptr - 1, buffer, &goodness) == true) {
-					if(goodness >= previous_best_goodness) {
-						//file_count += 1;
-						candidate_list_add(candidates, dirname, files, goodness);
-						//printf("%s/%s %d\n", dirname, files, contig);
-						previous_best_goodness = goodness;
-					}
-				}
-				files += filename_len;
-			}
+			dirname = files;
+			files += dirname_len;
+			new_directory = false;
 		}
 
-		candidate_list_dump(candidates);
-		printf("\n> %s", buffer);
-		fflush(stdout);
-
-		c = getchar();
-		printf("\n");
-
-		if(c == '\n' || c == '\r')
-			break;
-		else if (c == 127) {
-			if (buffer_ptr > 0) {
-				buffer_ptr --;
-				buffer[buffer_ptr] = '\0';
-			}
+		filename_len = *(unsigned int *)files;
+		files += sizeof(unsigned int);
+		if (filename_len == 0) {
+			// End of this directory 
+			files += 1;
+			new_directory = true;
 		} else {
-			buffer[buffer_ptr ++] = c;
-			buffer[buffer_ptr] = '\0';
+			int goodness;
+			if (fp_strstr(dirname_len - 1, dirname, filename_len - 1, files, buffer_ptr - 1, buffer, &goodness) == true) {
+				if(goodness >= previous_best_goodness) {
+					candidate_list_add(candidates, dirname, files, goodness);
+					previous_best_goodness = goodness;
+				}
+			}
+			files += filename_len;
 		}
-
 	}
-
-	candidate_list_destroy(candidates);
+	return true;
 }
+
 
 /* FIXME: Support directory filtering as well. Dodgy option: include both.
  * Less dodgy option: include custom fnmatch to take two-string arg as per
  * strstr. */
 
-char *positive_filter[] = {
-	"*.c",
-	"*.h",
-	"*.cpp",
-	"*.cxx",
-	NULL};
-
-char *negative_filter[] = {
-	"*.o",
-	"*.ppm",
-	NULL
-};
-
-int main(int argc, char **argv)
+bool fp_init(void)
 {
-	assert(argc == 2);
+	return pool_init(&fp.main_pool);
+}
 
-	if (pool_init(&fp.main_pool) == false) {
-		ERROR("pool init main");
-		return 1;
-	}
+bool fp_deinit(void)
+{
+	return pool_free(&fp.main_pool);
+}
 
-	fp.term_modified = false;
-	atexit(term_reset);
-	term_init();
-
-	fp.positive_filter = positive_filter;
-	fp.negative_filter = negative_filter;
-	fp_init_dir(argv[1]);
-
-	filepirate_interactive_test();
-	fp_deinit_dir();
-
-	pool_free(&fp.main_pool);
-
+void fp_filter(char **positive, char **negative)
+{
+	fp.positive_filter = positive;
+	fp.negative_filter = negative;
 }
 
