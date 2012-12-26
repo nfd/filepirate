@@ -1,14 +1,13 @@
 """
-:arrr
-E492: Not an editor command: arrr
-:q!
-
+Python generic filepirate interface
 """
 import os
 import sys
 import ctypes
+import time
 
 SONAME = 'cfilepirate.so'
+MAX_PIRATES = 5
 
 class Candidate(ctypes.Structure):
 	# Forward declaration because of recursive type
@@ -36,15 +35,23 @@ class Error(Exception):
 	pass
 
 class FilePirate(object):
+	"""
+	Interface to native code
+	"""
+	# Class static
+	native = None
+
 	def __init__(self, root, max_candidates):
 		self.root = root
-		self.native = ctypes.CDLL(SONAME)
 
-		for export in PROTOTYPES:
-			restype, argtypes = PROTOTYPES[export]
-			obj = getattr(self.native, export)
-			obj.restype = restype
-			obj.argtypes = argtypes
+		if self.__class__.native is None:
+			self.__class__.native = ctypes.CDLL(SONAME)
+
+			for export in PROTOTYPES:
+				restype, argtypes = PROTOTYPES[export]
+				obj = getattr(self.__class__.native, export)
+				obj.restype = restype
+				obj.argtypes = argtypes
 
 		self.handle = self.native.fp_init(self.root)
 		if bool(self.handle) == False: # ctypes-speak for handle == NULL
@@ -72,10 +79,35 @@ class FilePirate(object):
 			candidate = candidate.worse
 
 		return candidates
-		
+
+class FilePirates(object):
+	"""
+	A set of FilePirate objects. Keeps only MAX_PIRATES in memory. Eviction is LRU.
+	"""
+	def __init__(self):
+		self.pirates = []
+
+	def get(self, root):
+		for idx in range(len(self.pirates)):
+			if self.pirates[idx].root == root:
+				pirate = self.pirates[idx]
+				self.pirates.pop(idx)
+				break
+		else:
+			if len(self.pirates) >= MAX_PIRATES:
+				self.pirates.pop()
+			pirate = FilePirate(root)
+
+		self.pirates.insert(0, pirate)
+		return pirate
+
 if __name__ == '__main__':
+	# test it
 	dirname = sys.argv[1]
 	searchterm = sys.argv[2]
 	fp = FilePirate(dirname, 10)
 	print fp.get_candidates(searchterm)
+	t = time.time()
+	print fp.get_candidates(searchterm)
+	print time.time() - t
 

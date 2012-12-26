@@ -4,3 +4,6 @@ cfilepirate.so
 *.o
 mem.txt
 bchier/*
+*.pyc
+test.txt
+Session.vim
