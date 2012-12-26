@@ -23,7 +23,6 @@
 #define MEM_MAX (64 * 1024 * 1024)
 #define ERROR printf
 #define INFO  printf
-#define MAX_CANDIDATES 30
 
 /* Structure in the memory pool. All indices are relative to the start of the pool.
  * So to convert an index to a pointer: ptr = (uint8_t *)pool_start + index.
@@ -50,15 +49,14 @@ struct memory_pool
 	uintptr_t size;
 };
 
-static struct {
+struct filepirate {
 	char *root_dirname;
 	uint8_t *files;               // When initialised, points to the main pool.
 	uint8_t *files_end;
 	struct memory_pool main_pool;
 	char **positive_filter;
 	char **negative_filter;
-
-} fp;
+};
 
 /* Memory pool functions */
 static bool pool_init(struct memory_pool *pool)
@@ -132,33 +130,33 @@ static uintptr_t pool_alloc(struct memory_pool *pool, size_t size)
 	return addr;
 }
 
-static inline uintptr_t alloc(size_t size)
+static inline uintptr_t alloc(struct filepirate *fp, size_t size)
 {
-	return pool_alloc(&fp.main_pool, size);
+	return pool_alloc(&(fp->main_pool), size);
 }
 
-static inline uint8_t *get_ptr(uintptr_t index)
+static inline uint8_t *get_ptr(struct filepirate *fp, uintptr_t index)
 {
-	return fp.main_pool.start + index;
+	return fp->main_pool.start + index;
 }
 
-static inline void write_uint (uintptr_t index, unsigned int val)
+static inline void write_uint (struct filepirate *fp, uintptr_t index, unsigned int val)
 {
-	*((unsigned int *)(get_ptr(index))) = val;
+	*((unsigned int *)(get_ptr(fp, index))) = val;
 }
 
-static inline bool passes_filter(char *name)
+static inline bool passes_filter(struct filepirate *fp, char *name)
 {
-	if (fp.positive_filter) {
-		for (char **filter = fp.positive_filter; *filter; filter++) {
+	if (fp->positive_filter) {
+		for (char **filter = fp->positive_filter; *filter; filter++) {
 			if (fnmatch(*filter, name, 0) == 0) {
 				return true;
 			}
 		}
 		return false;
 	}
-	if (fp.negative_filter) {
-		for (char **filter = fp.negative_filter; *filter; filter++) {
+	if (fp->negative_filter) {
+		for (char **filter = fp->negative_filter; *filter; filter++) {
 			if (fnmatch(*filter, name, 0) == 0) {
 				return false;
 			}
@@ -166,7 +164,9 @@ static inline bool passes_filter(char *name)
 	}
 	return true;
 }
-static uintptr_t fp_init_dir_recurse(void)
+
+/* Joke's on... erm, me -- this does not recurse! */
+static uintptr_t fp_init_dir_recurse(struct filepirate *fp)
 {
 	/* Just walk it for now */
 	uintptr_t first = 0;
@@ -175,7 +175,7 @@ static uintptr_t fp_init_dir_recurse(void)
 	bool dir_written = false;
 	FTSENT *node;
 
-	first = fp.main_pool.next;
+	first = fp->main_pool.next;
 
 	char *cwd_only[] = {".", 0};
 
@@ -194,32 +194,32 @@ static uintptr_t fp_init_dir_recurse(void)
 		} else if (node->fts_info & FTS_DP) {
 			//printf("post-order directory\n");
 			dir_written = false;
-		} else if ((node->fts_info & FTS_F) && passes_filter(node->fts_name)) {
+		} else if ((node->fts_info & FTS_F) && passes_filter(fp, node->fts_name)) {
 			if (dir_written == false) {
 				FTSENT *parent = node->fts_parent;
 				if (dirent_start) {
 					/* Finish off the previous directory with an extra nul */
 					//printf("end previous directory\n");
-					tmp = alloc(sizeof(unsigned int) + 1);
-					write_uint(tmp, 0);
+					tmp = alloc(fp, sizeof(unsigned int) + 1);
+					write_uint(fp, tmp, 0);
 					tmp += sizeof(unsigned int);
-					*((char *)get_ptr(tmp)) = '\0';
+					*((char *)get_ptr(fp, tmp)) = '\0';
 				}
 				//printf("write dirent %lx %s (%x) %s\n", fp.main_pool.next, parent->fts_path, parent->fts_pathlen, node->fts_path);
-				dirent_start = alloc(sizeof(unsigned int) + parent->fts_pathlen + 1);
-				write_uint(dirent_start, parent->fts_pathlen + 1);
+				dirent_start = alloc(fp, sizeof(unsigned int) + parent->fts_pathlen + 1);
+				write_uint(fp, dirent_start, parent->fts_pathlen + 1);
 				dirent_start += sizeof(unsigned int);
-				strncpy((char *)get_ptr(dirent_start), parent->fts_path, parent->fts_pathlen);
-				*((char *)(get_ptr(dirent_start) + parent->fts_pathlen + 1)) = '\0';
+				strncpy((char *)get_ptr(fp, dirent_start), parent->fts_path, parent->fts_pathlen);
+				*((char *)(get_ptr(fp, dirent_start) + parent->fts_pathlen + 1)) = '\0';
 
 				dir_written = true;
 			}
 
 			//printf("file %lx %s\n", fp.main_pool.next, node->fts_name);
-			tmp = alloc(sizeof(unsigned int) + node->fts_namelen + 1);
-			write_uint(tmp, node->fts_namelen + 1);
+			tmp = alloc(fp, sizeof(unsigned int) + node->fts_namelen + 1);
+			write_uint(fp, tmp, node->fts_namelen + 1);
 			tmp += sizeof(unsigned int);
-			strcpy((char *)get_ptr(tmp), node->fts_name);
+			strcpy((char *)get_ptr(fp, tmp), node->fts_name);
 		}
 	}
 
@@ -238,14 +238,14 @@ static uintptr_t fp_init_dir_recurse(void)
 	return first;
 }
 
-bool fp_init_dir(char *dirname)
+static bool fp_init_dir(struct filepirate *fp, char *dirname)
 {
 	int cwd;
 	uintptr_t files_index;
 
-	assert(fp.root_dirname == NULL);
-	fp.root_dirname = malloc(strlen(dirname) + 1);
-	strcpy(fp.root_dirname, dirname);
+	assert(fp->root_dirname == NULL);
+	fp->root_dirname = malloc(strlen(dirname) + 1);
+	strcpy(fp->root_dirname, dirname);
 
 	/* Remember the CWD */
 	cwd = open(".", O_RDONLY);
@@ -253,24 +253,24 @@ bool fp_init_dir(char *dirname)
 
 	/* Do all our work in the target dir's root */
 	chdir(dirname);
-	files_index = fp_init_dir_recurse();
+	files_index = fp_init_dir_recurse(fp);
 
 	/* Restore the previous CWD */
 	fchdir(cwd);
 	close(cwd);
 
 	// Lock the pointers -- now we can't do more allocation using the main pool (in case we realloc and move the pointer)
-	fp.files = fp.main_pool.start + files_index;
-	fp.files_end = fp.files + fp.main_pool.next - files_index;
+	fp->files = fp->main_pool.start + files_index;
+	fp->files_end = fp->files + fp->main_pool.next - files_index;
 
 	return files_index != 0;
 }
 
-void fp_deinit_dir(void)
+static void fp_deinit_dir(struct filepirate *fp)
 {
-	if(fp.root_dirname) {
-		free(fp.root_dirname);
-		fp.root_dirname = NULL;
+	if(fp->root_dirname) {
+		free(fp->root_dirname);
+		fp->root_dirname = NULL;
 	}
 }
 
@@ -328,16 +328,21 @@ static inline bool fp_strstr(unsigned int dirname_len, char *dirname,
 	return idx_needle == -1;
 }
 
-struct candidate_list *fp_candidate_list_create(void)
+struct candidate_list *fp_candidate_list_create(int max_candidates)
 {
 	int i;
 	struct candidate_list *list;
 
-	list = malloc(sizeof(*list)); assert(list);
+	list = malloc(sizeof(*list));
+	if (!list)
+		return NULL;
 	list->best = list->worst = NULL;
+	list->max_candidates = max_candidates;
 
-	for (i = 0; i < MAX_CANDIDATES; i++) {
-		struct candidate *new_candidate = malloc(sizeof(struct candidate)); assert(new_candidate);
+	for (i = 0; i < max_candidates; i++) {
+		struct candidate *new_candidate = malloc(sizeof(struct candidate));
+		if (!new_candidate)
+			return NULL; // FIXME: clean up memory leak
 		new_candidate->goodness = -1;
 
 		if (list->worst == NULL) {
@@ -413,7 +418,7 @@ static void candidate_list_add(struct candidate_list *list, char *dirname, char 
 	}
 }
 
-bool fp_get_candidates(char *buffer, int buffer_ptr, struct candidate_list *candidates)
+bool fp_get_candidates(struct filepirate *fp, char *buffer, int buffer_ptr, struct candidate_list *candidates)
 {
 	char *files;
 	int file_count = 0;
@@ -423,10 +428,10 @@ bool fp_get_candidates(char *buffer, int buffer_ptr, struct candidate_list *cand
 	char *dirname = NULL;
 
 	new_directory = true;
-	files = (char *)fp.files;
+	files = (char *)fp->files;
 	candidate_list_reset(candidates);
 
-	for(file_count = 0; file_count < 20 && files < (char *)fp.files_end; ) {
+	for(file_count = 0; file_count < candidates->max_candidates && files < (char *)fp->files_end; ) {
 		if (new_directory) {
 			dirname_len = *(unsigned int *)files;
 			files += sizeof(unsigned int);
@@ -460,19 +465,43 @@ bool fp_get_candidates(char *buffer, int buffer_ptr, struct candidate_list *cand
  * Less dodgy option: include custom fnmatch to take two-string arg as per
  * strstr. */
 
-bool fp_init(void)
+struct filepirate *fp_init(char *dirname)
 {
-	return pool_init(&fp.main_pool);
+	struct filepirate *fp;
+
+	fp = calloc(sizeof *fp, 1);
+	if (fp == NULL)
+		return NULL;
+
+	fp->positive_filter = fp->negative_filter = NULL;
+	if (pool_init(&(fp->main_pool)) == false) {
+		free(fp);
+		return NULL;
+	}
+
+	if (fp_init_dir(fp, dirname) == false) {
+		fp_deinit(fp);
+		return NULL;
+	}
+
+	return fp;
 }
 
-bool fp_deinit(void)
+bool fp_deinit(struct filepirate *fp)
 {
-	return pool_free(&fp.main_pool);
+	fp_deinit_dir(fp);
+
+	if (pool_free(&fp->main_pool)) {
+		free (fp);
+		return true;
+	}
+
+	return false;
 }
 
-void fp_filter(char **positive, char **negative)
+void fp_filter(struct filepirate *fp, char **positive, char **negative)
 {
-	fp.positive_filter = positive;
-	fp.negative_filter = negative;
+	fp->positive_filter = positive;
+	fp->negative_filter = negative;
 }
 

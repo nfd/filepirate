@@ -62,17 +62,17 @@ static void candidate_list_dump(struct candidate_list *list)
 	}
 }
 
-static void filepirate_interactive_test(void)
+static void filepirate_interactive_test(struct filepirate *fp)
 {
 	char buffer[80] = {0};
 	int buffer_ptr = 0;
 	unsigned int c;
 	struct candidate_list *candidates;
 
-	candidates = fp_candidate_list_create();
+	candidates = fp_candidate_list_create(20);
 
 	while (true) {
-		fp_get_candidates(buffer, buffer_ptr, candidates);
+		fp_get_candidates(fp, buffer, buffer_ptr, candidates);
 
 		candidate_list_dump(candidates);
 		printf("\n> %s", buffer);
@@ -101,9 +101,10 @@ static void filepirate_interactive_test(void)
 
 int main(int argc, char **argv)
 {
+	struct filepirate *fp;
 	assert(argc == 2);
 
-	if (fp_init() == false) {
+	if ((fp = fp_init(argv[1])) == NULL) {
 		ERROR("pool init main");
 		return 1;
 	}
@@ -112,11 +113,9 @@ int main(int argc, char **argv)
 	atexit(term_reset);
 	term_init();
 
-	fp_filter(positive_filter, negative_filter);
-	fp_init_dir(argv[1]);
+	fp_filter(fp, positive_filter, negative_filter);
 
-	filepirate_interactive_test();
-	fp_deinit_dir();
-	fp_deinit();
+	filepirate_interactive_test(fp);
+	fp_deinit(fp);
 
 }

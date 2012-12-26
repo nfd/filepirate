@@ -1,5 +1,6 @@
 syntax: glob
 cfilepirate_test
+cfilepirate.so
 *.o
 mem.txt
 bchier/*
