@@ -84,8 +84,9 @@ class FilePirates(object):
 	"""
 	A set of FilePirate objects. Keeps only MAX_PIRATES in memory. Eviction is LRU.
 	"""
-	def __init__(self):
+	def __init__(self, max_candidates):
 		self.pirates = []
+		self.max_candidates = max_candidates
 
 	def get(self, root):
 		for idx in range(len(self.pirates)):
@@ -96,7 +97,7 @@ class FilePirates(object):
 		else:
 			if len(self.pirates) >= MAX_PIRATES:
 				self.pirates.pop()
-			pirate = FilePirate(root)
+			pirate = FilePirate(root, self.max_candidates)
 
 		self.pirates.insert(0, pirate)
 		return pirate
