@@ -83,8 +83,8 @@ class FilePirateThread(threading.Thread):
 		self.daemon = True
 		self.search_terms = []
 		self.lock = threading.Lock()
-		self.cond = threading.Condition(self.lock)
-		self.idle = True
+		self.event = threading.Event()
+		self.results = None
 		self.rescan_requested = False
 		if DUMMY_FILEPIRATE:
 			self.do_search = self.do_search_dummy
@@ -95,26 +95,29 @@ class FilePirateThread(threading.Thread):
 
 	def run(self):
 		while True:
-			self.cond.acquire()
-
+			self.lock.acquire()
 			if not self.search_terms:
-				self.idle = True
-				self.cond.wait()
-
+				self.lock.release()
+				self.event.wait()
+			else:
+				self.lock.release()
+			
+			self.lock.acquire()
 			if self.search_terms:
-				self.idle = False
 				term = self.search_terms[-1]
 				self.search_terms = []
+				self.event.clear()
+				self.lock.release()
 
-			self.cond.release()
+				self.results = None
 
-			results = self.do_search(term)
+				results = self.do_search(term)
 
-			self.cond.acquire()
-			if not self.search_terms: # Still good!
-				self.idle = True
-				self.results = results
-			self.cond.release()
+				if not self.search_terms: # Still good!
+					self.results = results
+			else:
+				self.event.clear()
+				self.lock.release()
 	
 	def do_search_fp(self, term):
 		try:
@@ -141,10 +144,10 @@ class FilePirateThread(threading.Thread):
 		return ['Test file - %d - %s' % (self.dummy_counter, term) for i in range(10)]
 
 	def search(self, term):
-		self.cond.acquire()
+		self.lock.acquire()
 		self.search_terms.append(term)
-		self.cond.notify()
-		self.cond.release()
+		self.event.set()
+		self.lock.release()
 	
 	def rescan(self):
 		self.rescan_requested = True
@@ -198,8 +201,7 @@ class VimFilePirate(object):
 		# The File Pirate buffer
 		self.buf = None
 		self.async = VimAsync()
-		self.fp = FilePirateThread()
-		self.fp.start()
+		self.fp = None
 		self.searching = False
 		self.stored_vim_globals = {}
 		self.search_start_time = 0
@@ -248,7 +250,7 @@ class VimFilePirate(object):
 	
 	def search_poll(self):
 		if self.searching is True:
-			if self.fp.idle is True:
+			if self.fp and self.fp.results is not None:
 				self.spinner_character = ' '
 				self.async.stop()
 				self.searching = False
@@ -316,14 +318,17 @@ class VimFilePirate(object):
 	
 	def search(self, term):
 		" Start a File Pirate search for 'term' "
+		if self.fp is None:
+			self.fp = FilePirateThread()
+			self.fp.start()
 		if not self.searching:
 			self.spinner_character = ' '
 			self.search_start_time = time.time()
 		self.term = term
 		self.draw_search_line()
-		self.searching = True
 		self.async.start(self.search_poll)
 		self.fp.search(self.term)
+		self.searching = True
 	
 	def filepirate_accept(self):
 		" Close the File Pirate window and switch to the selected file "

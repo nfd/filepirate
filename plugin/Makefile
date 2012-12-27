@@ -1,4 +1,4 @@
-CFLAGS = -g -Wall -Werror -std=c99
+CFLAGS = -fPIC -g -Wall -Werror -std=c99
 
 .PHONY: ALL
 ALL: cfilepirate.so cfilepirate_test
