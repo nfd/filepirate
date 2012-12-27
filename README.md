@@ -31,7 +31,7 @@ Installation
 ------------
 
 1. Install [Pathogen](https://github.com/tpope/vim-pathogen).
-2. Check out the repository in your ~/.vim/bundle directory: `cd ~/.vim/bundle` followed by `git clone `
+2. Check out the repository in your ~/.vim/bundle directory: `cd ~/.vim/bundle` followed by `git clone https://github.com/nfd/filepirate.git`.
 3. Compile the native library (you'll need a C compiler): `cd ~/.vim/bundle/filepirate/plugin` followed by `make`.
 
 Usage
@@ -60,7 +60,7 @@ To customise the rescan command, assign the sequence you want to the global vari
 
     let g:filepirate_rescan="<F5>"
 
-You can use the same technique to change the following additional keys bindings, if you like:
+You can use the same technique to change the following additional key bindings, if you like:
 
 * `g:filepirate_up`: move cursor up (default: &lt;Up&gt;).
 * `g:filepirate_down`: move cursor down (default: &lt;Down&gt;).
