@@ -34,6 +34,8 @@ Installation
 2. Check out the repository in your ~/.vim/bundle directory: `cd ~/.vim/bundle` followed by `git clone https://github.com/nfd/filepirate.git`.
 3. Compile the native library (you'll need a C compiler): `cd ~/.vim/bundle/filepirate/plugin` followed by `make`.
 
+You may also want to run `:Helptags` inside Vim, to generate the documentation ("help filepirate").
+
 Usage
 -----
 Press &lt;Leader&gt;-T to bring up the File Pirate window. Typically the Vim leader is a backslash, so this would be \\t. Start typing a filename, and files will appear below the search term you type. To select a file, move the cursor using the up and down arrows, and press enter to load the file. When the window opens, the cursor is already positioned on the first result, so if the first match is the one you want you can just hit enter.

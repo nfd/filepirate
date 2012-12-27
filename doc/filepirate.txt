@@ -1,0 +1,83 @@
+*filepirate.vim* for Vim version 7.3 or newer. Modified: 2012 Dec 27
+
+		File Pirate file picker by Nicholas FitzRoy-Dale~
+
+File Pirate is a quick file picker for Vim. When you summon it, it pops up a
+Vim window and displays all files which match the search term you type. The
+search is performed in such a way that the file need not contain all the
+characters you type contiguously, but they must appear in the same order in
+the file name as they do in your search term.
+
+More information is available at File Pirate's Github repository:
+https://github.com/nfd/filepirate
+
+0. Install				|filepirate-install|
+1. Usage				|filepirate-usage|
+2. Options				|filepirate-options|
+
+==============================================================================
+0. Install						*filepirate-install*
+
+File Pirate uses Pathogen to install. Pathogen is available at
+https://github.com/tpope/vim-pathogen .
+
+Once Pathogen is installed, you can install File Pirate using the following
+commands:
+
+	$ cd ~/.vim/bundle
+	$ git clone https://github.com/nfd/filepirate.git
+	$ cd filepirate/plugin
+	$ make
+
+Back in Vim, run :Helptags to get Vim to notice the new documentation.
+
+==============================================================================
+1. Usage						*filepirate-usage*
+
+Press <Leader>-T to bring up the File Pirate window. Typically the Vim leader
+is a backslash, so this would be \t. Start typing a filename, and files will
+appear below the search term you type. To select a file, move the cursor using
+the up and down arrows, and press enter to load the file. When the window
+opens, the cursor is already positioned on the first result, so if the first
+match is the one you want you can just hit enter.
+
+File Pirate doesn't rescan the directory contents each time it is opened,
+which is a problem if you add or remove files. To get it to rescan, press
+<CTRL-R>.
+
+If you decide you don't actually want to load a file, press <ESC><ESC> to
+close the File Pirate window.
+
+That's about it, really.
+
+==============================================================================
+2. Options						*filepirate-options*
+
+By default, File Pirate uses <Leader>-T to open the file picker, and <CTRL-R>
+to rescan. You can customise both of these.
+
+To customise the open command, first disable File Pirate's default behaviour
+in your .vimrc:
+
+	let g:filepirate_map_leader=0
+
+Then map whatever you like to invoke "python filepirate_open()". For example,
+to map <Ctrl>-T to File Pirate, use:
+
+	nmap <C-t> :python filepirate_open()<CR>
+
+To customise the rescan command, assign the sequence you want to the global
+variable filepirate_rescan. For example, to use F5 to rescan:
+
+	let g:filepirate_rescan="<F5>"
+
+You can use the same technique to change the following additional key
+bindings, if you like:
+
+g:filepirate_up: move cursor up (default: <Up>).
+g:filepirate_down: move cursor down (default: <Down>).
+g:filepirate_bs: delete the most-recently-typed character (default: <BS>).
+g:filepirate_accept: close File Pirate, and open the file under the cursor (default: <CR>).
+g:filepirate_cancel: close File Pirate (default: <Esc>).
+
+ vim:tw=78:noet:ts=8:ft=help:norl:
