@@ -53,18 +53,25 @@ class FilePirate(object):
 				obj.restype = restype
 				obj.argtypes = argtypes
 
-		self.handle = self.native.fp_init(self.root)
-		if bool(self.handle) == False: # ctypes-speak for handle == NULL
-			raise Error("fp_init")
-		
 		self.max_candidates = max_candidates
-		self.candidates = self.native.fp_candidate_list_create(max_candidates)
-		if self.candidates == None:
-			raise Error("fp_candidate_list_create")
+		self.create()
 	
 	def __del__(self):
 		self.native.fp_candidate_list_destroy(self.candidates)
 		self.native.fp_deinit(self.handle)
+	
+	def rescan(self):
+		self.__del__()
+		self.create()
+	
+	def create(self):
+		self.handle = self.native.fp_init(self.root)
+		if bool(self.handle) == False: # ctypes-speak for handle == NULL
+			raise Error("fp_init")
+
+		self.candidates = self.native.fp_candidate_list_create(self.max_candidates)
+		if self.candidates == None:
+			raise Error("fp_candidate_list_create")
 
 	def get_candidates(self, search_term):
 		result = self.native.fp_get_candidates(self.handle, search_term, len(search_term), self.candidates)

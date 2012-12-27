@@ -49,7 +49,8 @@ SPECIAL_KEYS = {'<CR>': 'filepirate_accept',
 		'<Char-27><Char-27>': 'filepirate_cancel',
 		'<Up>': 'filepirate_up',
 		'<Down>': 'filepirate_down',
-		'<BS>': 'filepirate_bs'}
+		'<BS>': 'filepirate_bs',
+		'<C-R>': 'filepirate_rescan'}
 SPINNER = r'/-\|'
 
 class FilePirateThread(threading.Thread):
@@ -84,6 +85,7 @@ class FilePirateThread(threading.Thread):
 		self.lock = threading.Lock()
 		self.cond = threading.Condition(self.lock)
 		self.idle = True
+		self.rescan_requested = False
 		if DUMMY_FILEPIRATE:
 			self.do_search = self.do_search_dummy
 			self.dummy_counter = 0
@@ -117,6 +119,10 @@ class FilePirateThread(threading.Thread):
 	def do_search_fp(self, term):
 		pirate = self.pirates.get(os.getcwd())
 
+		if self.rescan_requested:
+			pirate.rescan()
+			self.rescan_requested = False
+
 		results = pirate.get_candidates(term)
 		# FIXME: Hackish, and not necessary (just pretty)
 		results = [result[2:] if result.startswith('./') else result for result in results]
@@ -125,6 +131,7 @@ class FilePirateThread(threading.Thread):
 	def do_search_dummy(self, term):
 		self.dummy_counter += 1
 		time.sleep(DUMMY_FILEPIRATE_DELAY)
+		self.rescan_requested = False
 		return ['Test file - %d - %s' % (self.dummy_counter, term) for i in range(10)]
 
 	def search(self, term):
@@ -132,6 +139,9 @@ class FilePirateThread(threading.Thread):
 		self.search_terms.append(term)
 		self.cond.notify()
 		self.cond.release()
+	
+	def rescan(self):
+		self.rescan_requested = True
 
 class VimAsync(object):
 	"""
@@ -175,6 +185,9 @@ class VimAsync(object):
 		vim.command('call feedkeys("\\<C-A>")')
 
 class VimFilePirate(object):
+	"""
+	Main object. Singleton (one per Vim process).
+	"""
 	def __init__(self):
 		# The File Pirate buffer
 		self.buf = None
@@ -260,35 +273,39 @@ class VimFilePirate(object):
 		self.lock_buffer()
 
 	def set_global_options(self):
-		""" Remember the previous global options settings, and set our ones. """
+		" Remember the previous global options settings, and set our ones. "
 		for opt in GLOBAL_OPTIONS:
 			self.stored_vim_globals[opt] = bool(vim.eval('&' + opt))
 			setter = opt if GLOBAL_OPTIONS[opt] else 'no' + opt
 			vim.command('set ' + setter)
 	
 	def reset_global_options(self):
-		""" Restore settings saved in set_global_options() """
+		" Restore settings saved in set_global_options() "
 		for opt in self.stored_vim_globals:
 			setter = opt if self.stored_vim_globals[opt] else 'no' + opt
 			vim.command('set ' + setter)
 
 	# Public API
 	def filepirate_open(self):
+		" Open the window "
 		self.reset()
 		# Set up the buffer and bend vim to our will
 		self.buffer_create()
 		self.set_global_options()
 	
 	def filepirate_close(self):
+		" Close the window and shut down "
 		self.async.stop()
 		self.reset_global_options()
 		vim.command("close");
 		vim.command("silent! bunload! #%d" % (self.buf.number))
 
 	def filepirate_key(self, ascii):
+		" User pressed a key in the File Pirate window. "
 		self.search(self.term + chr(ascii))
 	
 	def search(self, term):
+		" Start a File Pirate search for 'term' "
 		if not self.searching:
 			self.spinner_character = ' '
 			self.search_start_time = time.time()
@@ -299,31 +316,42 @@ class VimFilePirate(object):
 		self.fp.search(self.term)
 	
 	def filepirate_accept(self):
+		" Close the File Pirate window and switch to the selected file "
 		filename = self.buf[self.selected + 1][1:]
 		self.filepirate_close()
 		vim.command('e ' + filename)
 
 	def filepirate_cancel(self):
+		" Close the File Pirate window without selecting a file "
 		self.filepirate_close()
 	
 	def filepirate_up(self):
+		" Move cursor up "
 		if self.selected > 0:
 			self.selected -= 1
 		self.cursor_to_selected()
 	
 	def filepirate_down(self):
+		" Move cursor down "
 		if self.selected < MAX_RESULTS - 1:
 			self.selected += 1
 		self.cursor_to_selected()
 	
 	def filepirate_bs(self):
+		" Backspace "
 		if len(self.term) > 0:
 			self.search(self.term[:-1])
+	
+	def filepirate_rescan(self):
+		" Rescan the current directory "
+		self.fp.rescan()
+		if self.term:
+			self.search(self.term)
 
 # Singleton
 vim_file_pirate = VimFilePirate()
 
-# Exposed to VIM
+# Exposed to Vim
 filepirate_open     = vim_file_pirate.filepirate_open
 filepirate_key      = vim_file_pirate.filepirate_key
 filepirate_callback = vim_file_pirate.async.from_vim
@@ -332,4 +360,5 @@ filepirate_cancel   = vim_file_pirate.filepirate_cancel
 filepirate_up       = vim_file_pirate.filepirate_up
 filepirate_down     = vim_file_pirate.filepirate_down
 filepirate_bs       = vim_file_pirate.filepirate_bs
+filepirate_rescan   = vim_file_pirate.filepirate_rescan
 
