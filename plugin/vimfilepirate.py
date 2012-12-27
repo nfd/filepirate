@@ -270,6 +270,8 @@ class VimFilePirate(object):
 		self.unlock_buffer()
 		for idx, result in enumerate(results):
 			self.buf[idx + 1] = ' ' + result
+		for idx in range(len(results), MAX_RESULTS):
+			self.buf[idx + 1] = ''
 		self.lock_buffer()
 
 	def set_global_options(self):
@@ -318,8 +320,9 @@ class VimFilePirate(object):
 	def filepirate_accept(self):
 		" Close the File Pirate window and switch to the selected file "
 		filename = self.buf[self.selected + 1][1:]
+		filename = filename.replace(' ', r'\ ')
 		self.filepirate_close()
-		vim.command('e ' + filename)
+		vim.command('e %s' % (filename))
 
 	def filepirate_cancel(self):
 		" Close the File Pirate window without selecting a file "

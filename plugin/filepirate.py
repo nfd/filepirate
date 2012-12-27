@@ -6,7 +6,7 @@ import sys
 import ctypes
 import time
 
-SONAME = 'cfilepirate.so'
+SONAME = os.path.join(os.path.dirname(__file__), 'cfilepirate.so')
 MAX_PIRATES = 5
 
 class Candidate(ctypes.Structure):
@@ -82,6 +82,9 @@ class FilePirate(object):
 		candidate = self.candidates.contents.best
 		while bool(candidate): # magic: bool(ptr) = false when ptr is null
 			candidate = candidate.contents
+			if candidate.goodness == -1:
+				# That's it
+				break
 			candidates.append(os.path.join(candidate.dirname, candidate.filename))
 			candidate = candidate.worse
 
