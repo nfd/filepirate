@@ -57,8 +57,9 @@ class FilePirate(object):
 		self.create()
 	
 	def __del__(self):
-		self.native.fp_candidate_list_destroy(self.candidates)
-		self.native.fp_deinit(self.handle)
+		if self.native:
+			self.native.fp_candidate_list_destroy(self.candidates)
+			self.native.fp_deinit(self.handle)
 	
 	def rescan(self):
 		self.__del__()

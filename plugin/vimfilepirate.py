@@ -117,13 +117,19 @@ class FilePirateThread(threading.Thread):
 			self.cond.release()
 	
 	def do_search_fp(self, term):
-		pirate = self.pirates.get(os.getcwd())
+		try:
+			pirate = self.pirates.get(os.getcwd())
+		except Exception as e:
+			return ["ERROR: %s" % (str(e))]
 
 		if self.rescan_requested:
 			pirate.rescan()
 			self.rescan_requested = False
 
-		results = pirate.get_candidates(term)
+		try:
+			results = pirate.get_candidates(term)
+		except Exception as e:
+			return ["ERROR: %s" % (str(e))]
 		# FIXME: Hackish, and not necessary (just pretty)
 		results = [result[2:] if result.startswith('./') else result for result in results]
 		return results
