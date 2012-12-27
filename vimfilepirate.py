@@ -7,7 +7,7 @@ E492: Not an editor command: arrr
 
 File Pirate by Nicholas FitzRoy-Dale. BSD license.
 
-Many of the Vim incantations were heavily based upon, and in several cases directly copied from, Wincent Colaiuta's Command-T plugin -- much appreciated. Command-T is an excellent plugin and was the inspiration for this one. It's available here: https://wincent.com/products/command-t
+The Vim incantations contained herein were heavily based upon, and in several cases directly copied from, Wincent Colaiuta's excellent Command-T plugin, available here: https://wincent.com/products/command-t
 """
 import threading
 import string
@@ -55,10 +55,10 @@ SPINNER = r'/-\|'
 class FilePirateThread(threading.Thread):
 	"""
 	This runs in the background and searches for things the user types.  When
-	the search is complete, "callback" gets called with a list of matching
-	names.  While searches are in progress (~= search started and "callback"
-	not yet called), new searches can be enqueued. "callback" is only called
-	when the final such enqueued search completes.
+	the search is complete, "results" is set to a list of matching names.
+	While searches are in progress (= "idle" is False), new searches can be
+	enqueued. "results" is only set when the final such enqueued search
+	completes.
 
 	The idea behind this is that we are searching as a user types a search term
 	interactively.  After each character we perform a search and update the
@@ -67,6 +67,11 @@ class FilePirateThread(threading.Thread):
 	as separate searches, but the user will only care about the results of the
 	one corresponding to what she most recently typed, i.e. the last enqueued
 	search.
+
+	The reason this is done with idle flags and so on instead of callbacks is
+	because Vim doesn't support asynchronous notification, so the interface
+	code below is obliged to poll this object for results. It does this every
+	POLL_INTERVAL ms (default 0.1 seconds).
 
 	TODO: An obvious improvement is to add support for cancelling in-progress
 	searches, perhaps with a flag that the native code can check once per
@@ -129,11 +134,18 @@ class FilePirateThread(threading.Thread):
 		self.cond.release()
 
 class VimAsync(object):
-	# FIXME: This is a massive hack.
+	"""
+	Simulates vim-plugin-initiated communication using polling.
+
+	Unfortunately Vim doesn't really support polling either.  Consequently this
+	is a massive hack. For more details, see
+	http://vim.wikia.com/wiki/Timer_to_execute_commands_periodically
+	"""
+
 	def __init__(self):
 		self.running = False
 		self.clear()
-		self.saved_updatetime = 4000
+		self.saved_updatetime = int(vim.eval('&updatetime'))
 	
 	def clear(self):
 		self.callback = None
@@ -160,7 +172,6 @@ class VimAsync(object):
 	def from_vim(self):
 		assert self.running
 		self.callback(*self.callback_args)
-		# "request another callback" (see comment at start of this class re hack)
 		vim.command('call feedkeys("\\<C-A>")')
 
 class VimFilePirate(object):
@@ -171,21 +182,17 @@ class VimFilePirate(object):
 		self.fp = FilePirateThread()
 		self.fp.start()
 		self.searching = False
-		self.term = '' # search term
 		self.stored_vim_globals = {}
 		self.search_start_time = 0
-		self.spinner_position = 0
+		self.reset()
+	
+	def reset(self):
+		self.term = '' # search term
 		self.selected = 0
 		self.spinner_character = ' '
-
-	def search_complete(self, results):
-		# TODO: update pirate window with latest results
-		pass
+		self.spinner_position = 0
 
 	def buffer_create(self):
-		# Reset some things
-		self.term = ''
-
 		# Open the window
 		vim.command('silent! topleft 1split FilePirate')
 
@@ -194,6 +201,7 @@ class VimFilePirate(object):
 
 		assert 'FilePirate' in vim.current.buffer.name
 
+		# Set up the window.
 		self.buffer_register_keys()
 		self.buf = vim.current.buffer
 
@@ -231,9 +239,7 @@ class VimFilePirate(object):
 	def advance_spinner(self):
 		if time.time() - self.search_start_time > SPINNER_DELAY:
 			self.spinner_character = SPINNER[self.spinner_position]
-			self.spinner_position += 1
-			if self.spinner_position == len(SPINNER):
-				self.spinner_position = 0
+			self.spinner_position = (self.spinner_position + 1) % len(SPINNER)
 			self.draw_search_line()
 	
 	def draw_search_line(self):
@@ -268,6 +274,8 @@ class VimFilePirate(object):
 
 	# Public API
 	def filepirate_open(self):
+		self.reset()
+		# Set up the buffer and bend vim to our will
 		self.buffer_create()
 		self.set_global_options()
 	
