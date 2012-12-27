@@ -242,6 +242,8 @@ class VimFilePirate(object):
 			vim.command('noremap <silent> <buffer> <Char-%d> :python filepirate_key(%d)<CR>' % (ascii, ascii))
 
 		for keyname, cmd in SPECIAL_KEYS.items():
+			if vim.eval('exists("g:%s")' % (cmd)) != '0':
+				keyname = vim.eval('g:%s' % (cmd))
 			vim.command('noremap <silent> <buffer> %s :python %s()<CR>' % (keyname, cmd))
 	
 	def search_poll(self):
@@ -353,6 +355,7 @@ class VimFilePirate(object):
 	
 	def filepirate_rescan(self):
 		" Rescan the current directory "
+		print "rescan"
 		self.fp.rescan()
 		if self.term:
 			self.search(self.term)
