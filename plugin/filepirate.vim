@@ -9,6 +9,6 @@ from vimfilepirate import filepirate_open, filepirate_key, filepirate_callback, 
 EOF
 
 if !exists("g:filepirate_map_leader") || g:filepirate_map_leader != 0
-	nmap <Leader>t :python filepirate_open()<CR>
+	noremap <Leader>t :python filepirate_open()<CR>
 endif
 
