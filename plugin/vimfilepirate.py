@@ -204,6 +204,7 @@ class VimFilePirate(object):
 		self.fp = None
 		self.searching = False
 		self.stored_vim_globals = {}
+		self.previous_window_number = None
 		self.search_start_time = 0
 		self.reset()
 	
@@ -300,6 +301,7 @@ class VimFilePirate(object):
 	# Public API
 	def filepirate_open(self):
 		" Open the window "
+		self.previous_window_number = vim.eval("winnr()")
 		self.reset()
 		# Set up the buffer and bend vim to our will
 		self.buffer_create()
@@ -311,6 +313,7 @@ class VimFilePirate(object):
 		self.reset_global_options()
 		vim.command("close");
 		vim.command("silent! bunload! #%d" % (self.buf.number))
+		vim.command('exe %s . "wincmd w"' % self.previous_window_number)
 
 	def filepirate_key(self, ascii):
 		" User pressed a key in the File Pirate window. "
