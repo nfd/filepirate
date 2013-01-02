@@ -339,17 +339,7 @@ class VimFilePirate(object):
 		filename = filename.replace(' ', r'\ ')
 		self.filepirate_close()
 
-		try:
-			vim.command('e %s' % (filename))
-		except vim.error as e:
-			# This is a fairly horrible way to get the error number. Is there a better way?
-			errmsg = vim.eval('errmsg')
-			if errmsg.startswith('E37:'):
-				# "No write since last change (add ! to overwrite)
-				# Let the user sort this out, but don't display a traceback.
-				pass
-			else:
-				raise
+		vim.command('e %s' % (filename))
 
 	def filepirate_cancel(self):
 		" Close the File Pirate window without selecting a file "
