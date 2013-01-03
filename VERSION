@@ -1,3 +1,6 @@
+Version 0.1.0, January 3, 2013
+Initial release to vim.org/scripts. Return to correct window after file selection.
+
 Version 0.0.0, December 28, 2012
 Mac and Linux support. Basic functionality in place: async search, select, and rescan.
 
