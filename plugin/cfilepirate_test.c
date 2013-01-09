@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <termios.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "cfilepirate.h"
 
@@ -98,24 +99,44 @@ static void filepirate_interactive_test(struct filepirate *fp)
 	fp_candidate_list_destroy(candidates);
 }
 
+static void filepirate_search_once(struct filepirate *fp, char *term)
+{
+	struct candidate_list *candidates;
+
+	candidates = fp_candidate_list_create(10);
+	fp_get_candidates(fp, term, strlen(term) + 1, candidates);
+	candidate_list_dump(candidates);
+	fp_candidate_list_destroy(candidates);
+}
+
 
 int main(int argc, char **argv)
 {
 	struct filepirate *fp;
-	assert(argc == 2);
+	bool interactive = true;
+
+	if (argc == 3)
+		interactive = false;
+	else
+		assert(argc == 2);
 
 	if ((fp = fp_init(argv[1])) == NULL) {
 		ERROR("pool init main");
 		return 1;
 	}
 
-	term_modified = false;
-	atexit(term_reset);
-	term_init();
+	if (interactive) {
+		term_modified = false;
+		atexit(term_reset);
+		term_init();
+	}
 
 	fp_filter(fp, positive_filter, negative_filter);
 
-	filepirate_interactive_test(fp);
+	if (argc == 2)
+		filepirate_interactive_test(fp);
+	else
+		filepirate_search_once(fp, argv[2]);
 	fp_deinit(fp);
-
 }
+

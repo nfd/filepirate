@@ -210,7 +210,7 @@ static uintptr_t fp_init_dir_recurse(struct filepirate *fp)
 				write_uint(fp, dirent_start, parent->fts_pathlen + 1);
 				dirent_start += sizeof(unsigned int);
 				strncpy((char *)get_ptr(fp, dirent_start), parent->fts_path, parent->fts_pathlen);
-				*((char *)(get_ptr(fp, dirent_start) + parent->fts_pathlen + 1)) = '\0';
+				*((char *)(get_ptr(fp, dirent_start) + parent->fts_pathlen)) = '\0';
 
 				dir_written = true;
 			}
