@@ -216,7 +216,8 @@ class VimFilePirate(object):
 
 	def buffer_create(self):
 		# Open the window
-		vim.command('silent! topleft 1split FilePirate')
+		window_height = MAX_RESULTS + 1
+		vim.command('silent! topleft %dsplit FilePirate' % (window_height))
 
 		for option in BUFFER_OPTIONS:
 			vim.command('setlocal ' + option)
@@ -233,7 +234,6 @@ class VimFilePirate(object):
 			if len(self.buf) - 2 < idx:
 				self.buf.append('')
 		self.lock_buffer()
-		vim.current.window.height = MAX_RESULTS + 1
 		self.cursor_to_selected()
 	
 	def cursor_to_selected(self):
