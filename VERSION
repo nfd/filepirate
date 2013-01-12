@@ -1,3 +1,6 @@
+Version 0.1.1, January 12, 2013
+Small bug related to window sizing fixed. Bug in directory scaning fixed (it had no noticeable effect, as far as I can tell)
+
 Version 0.1.0, January 3, 2013
 Initial release to vim.org/scripts. Return to correct window after file selection.
 
