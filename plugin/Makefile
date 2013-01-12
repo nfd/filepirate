@@ -9,5 +9,5 @@ cfilepirate_test: cfilepirate_test.o cfilepirate.o
 	$(CC) -g -o $@ $+
 
 clean:
-	rm -f *.o *.so cfilepirate_test
+	rm -f *.o *.so cfilepirate_test *.pyc
 
