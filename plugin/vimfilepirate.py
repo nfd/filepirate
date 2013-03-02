@@ -20,7 +20,6 @@ import filepirate
 POLL_INTERVAL = 100 # milliseconds
 DUMMY_FILEPIRATE = False # Debug -- provide bogus results
 DUMMY_FILEPIRATE_DELAY = 3 # Seconds
-MAX_RESULTS = 10
 PROMPT = '> '
 SPINNER_DELAY = 1 # seconds between starting a search and showing the spinner
 
@@ -51,7 +50,15 @@ SPECIAL_KEYS = {'<CR>': 'filepirate_accept',
 		'<Down>': 'filepirate_down',
 		'<BS>': 'filepirate_bs',
 		'<C-R>': 'filepirate_rescan'}
+
+# Configuration
+CONFIGURABLES = {'g:filepirate_max_results': (int, 10)}
+
+# Shown while reloading directory information
 SPINNER = r'/-\|'
+
+class ConfigLoadError(Exception):
+	pass
 
 class FilePirateThread(threading.Thread):
 	"""
@@ -78,7 +85,7 @@ class FilePirateThread(threading.Thread):
 	searches, perhaps with a flag that the native code can check once per
 	directory.
 	"""
-	def __init__(self):
+	def __init__(self, max_results):
 		threading.Thread.__init__(self)
 		self.daemon = True
 		self.search_terms = []
@@ -91,7 +98,7 @@ class FilePirateThread(threading.Thread):
 			self.dummy_counter = 0
 		else:
 			self.do_search = self.do_search_fp
-			self.pirates = filepirate.FilePirates(MAX_RESULTS)
+			self.pirates = filepirate.FilePirates(max_results)
 
 	def run(self):
 		while True:
@@ -215,8 +222,10 @@ class VimFilePirate(object):
 		self.spinner_position = 0
 
 	def buffer_create(self):
+		self.config_load()
+
 		# Open the window
-		window_height = MAX_RESULTS + 1
+		window_height = self.config['g:filepirate_max_results'] + 1
 		vim.command('silent! topleft %dsplit FilePirate' % (window_height))
 
 		for option in BUFFER_OPTIONS:
@@ -230,12 +239,33 @@ class VimFilePirate(object):
 
 		self.draw_search_line()
 		self.unlock_buffer()
-		for idx in range(MAX_RESULTS):
+		for idx in range(self.config['g:filepirate_max_results']):
 			if len(self.buf) - 2 < idx:
 				self.buf.append('')
 		self.lock_buffer()
 		self.cursor_to_selected()
 	
+	def config_load(self):
+		self.config = {}
+		for key, keyinfo in CONFIGURABLES.items():
+			key_class, key_default = keyinfo
+
+			if vim.eval('exists("%s")' % (key)) != '0':
+				value = vim.eval('%s' % (key))
+				try:
+					if key_class is int:
+						value = int(value)
+					else:
+						raise NotImplementedError(key_class)
+				except Exception as e:
+					# TODO: This isn't really the end of the world and we could use the default,
+					# but an exception is a good way to get the vim user's attention.
+					raise ConfigLoadError("Couldn't load default %s (%s)" % (key, str(e)))
+			else:
+				value = key_default
+
+			self.config[key] = value
+
 	def cursor_to_selected(self):
 		vim.current.window.cursor = (2 + self.selected, 0)
 	
@@ -281,7 +311,7 @@ class VimFilePirate(object):
 		self.unlock_buffer()
 		for idx, result in enumerate(results):
 			self.buf[idx + 1] = ' ' + result
-		for idx in range(len(results), MAX_RESULTS):
+		for idx in range(len(results), self.config['g:filepirate_max_results']):
 			self.buf[idx + 1] = ''
 		self.lock_buffer()
 
@@ -322,7 +352,7 @@ class VimFilePirate(object):
 	def search(self, term):
 		" Start a File Pirate search for 'term' "
 		if self.fp is None:
-			self.fp = FilePirateThread()
+			self.fp = FilePirateThread(self.config['g:filepirate_max_results'])
 			self.fp.start()
 		if not self.searching:
 			self.spinner_character = ' '
@@ -353,7 +383,7 @@ class VimFilePirate(object):
 	
 	def filepirate_down(self):
 		" Move cursor down "
-		if self.selected < MAX_RESULTS - 1:
+		if self.selected < self.config['g:filepirate_max_results'] - 1:
 			self.selected += 1
 		self.cursor_to_selected()
 	

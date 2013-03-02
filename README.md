@@ -46,8 +46,8 @@ If you decide you don't actually want to load a file, press &lt;ESC&gt;&lt;ESC&g
 
 That's about it, really.
 
-Customisation
--------------
+Customising the keys
+--------------------
 By default, File Pirate uses &lt;Leader&gt;-T to open the file picker, and &lt;CTRL-R&gt; to rescan. You can customise both of these. 
 
 To customise the open command, first disable File Pirate's default behaviour in your .vimrc:
@@ -69,6 +69,14 @@ You can use the same technique to change the following additional key bindings, 
 * `g:filepirate_bs`: delete the most-recently-typed character (default: &lt;BS&gt;).
 * `g:filepirate_accept`: close File Pirate, and open the file under the cursor (default: &lt;CR&gt;).
 * `g:filepirate_cancel`: close File Pirate (default: &lt;Esc&gt;).
+
+Other customisations
+--------------------
+You can change the maximum number of results that File Pirate displays by setting `g:filepirate_max_results` to some integer. The default value is 10. For example, to show 20 results, put this in your .vimrc:
+
+    let g:filepirate_max_results=20
+
+Very large values might make File Pirate slow.
 
 Warning
 -------
