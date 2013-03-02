@@ -17,7 +17,7 @@ So, for example, if you have the following files in your directory:
 
 ... then typing ".c" in the File Pirate window will return all of them. However, typing ".cpp", "SomeClass" or "netlard" will only return the final one.
 
-File Pirate is better than other Vim plugins that do the same thing because it is significantly faster when working with large collections of files (10000 or more). In other ways it is probably worse, and I would encourage you to check out other plugins if File Pirate doesn't meet your needs.
+File Pirate's reason for existence is that it is much faster than other Vim plugins which do the same thing, though it's probably less configurable.
 
 Requirements
 ------------
@@ -30,7 +30,7 @@ You'll need:
 Installation
 ------------
 
-1. Install [Pathogen](https://github.com/tpope/vim-pathogen).
+1. Install [Pathogen](https://github.com/tpope/vim-pathogen) (or put File Pirate in your plugin path some other way).
 2. Check out the repository in your ~/.vim/bundle directory: `cd ~/.vim/bundle` followed by `git clone https://github.com/nfd/filepirate.git`.
 3. Compile the native library (you'll need a C compiler): `cd ~/.vim/bundle/filepirate/plugin` followed by `make`.
 
@@ -68,7 +68,7 @@ You can use the same technique to change the following additional key bindings, 
 * `g:filepirate_down`: move cursor down (default: &lt;Down&gt;).
 * `g:filepirate_bs`: delete the most-recently-typed character (default: &lt;BS&gt;).
 * `g:filepirate_accept`: close File Pirate, and open the file under the cursor (default: &lt;CR&gt;).
-* `g:filepirate_cancel`: close File Pirate (default: &lt;Esc&gt;).
+* `g:filepirate_cancel`: close File Pirate (default: &lt;Esc&gt; &lt;Esc&gt;).
 
 Other customisations
 --------------------
