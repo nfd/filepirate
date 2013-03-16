@@ -48,25 +48,32 @@ KEYS = {
 	# to control File Pirate.
 	'insert': string.letters + string.digits + ' .',
 	'normal':{
-		'<CR>': 'filepirate_accept',
-		'<Char-27><Char-27>': 'filepirate_cancel',
-		'<Up>': 'filepirate_up',
-		'<Down>': 'filepirate_down',
-		'<BS>': 'filepirate_bs',
-		'<C-R>': 'filepirate_rescan'},
+		'filepirate_accept': '<CR>',
+		'filepirate_cancel': '<Char-27><Char-27>',
+		'filepirate_up': '<Up>',
+		'filepirate_down': '<Down>',
+		'filepirate_bs': '<BS>',
+		'filepirate_rescan': '<C-R>'},
 
 	# If g:filepirate_is_modal is true, then:
 	# - In insert mode, 'insert' and 'dualmode_insert' are mapped.
-	# - In normal mode, 'normal' and 'dualmode_normal' are mapped.
+	# - In normal mode, 'dualmode_normal' is mapped.
 	'dualmode_normal': {
-		'k': 'filepirate_up',
-		'j': 'filepirate_down',
-		'i': 'filepirate_enter_insert_mode'},
+		'filepirate_accept': '<CR>',
+		'filepirate_cancel': '<Char-27><Char-27>',
+		'filepirate_up': '',   # j will work as it's a normal Vim mapping
+		'filepirate_down': '', # k will work for the same reason
+		'filepirate_bs': '',
+		'filepirate_rescan': '<C-R>',
+		'filepirate_enter_insert_mode': 'i'},
 	'dualmode_insert': {
-		'<Char-27>': 'filepirate_enter_normal_mode',
-		'<CR>': 'filepirate_accept',
-		'<BS>': 'filepirate_bs',
-		'<C-R>': 'filepirate_rescan'},
+		'filepirate_accept': '<CR>',
+		'filepirate_cancel': '<Char-27><Char-27>',
+		'filepirate_up': '<Up>',
+		'filepirate_down': '<Down>',
+		'filepirate_bs': '<BS>',
+		'filepirate_rescan': '<C-R>',
+		'filepirate_enter_normal_mode': '<Char-27>'},
 }
 
 # Configuration
@@ -75,6 +82,16 @@ CONFIGURABLES = {'g:filepirate_max_results': (int, 10),
 
 # Shown while reloading directory information
 SPINNER = r'/-\|'
+
+# Modes that File Pirate can be in.
+MODE_INSERT = 1
+MODE_NORMAL = 2
+MODE_NOMODE = 3
+
+# Maps modes to key-customisation suffixes. In normal mode, the key customisation for filepirate_rescan is
+# filepirate_rescan_normal; in insert mode it's filepirate_rescan_insert, and in 'nomode' (non-modal) operation,
+# it's just filepirate_rescan; i.e. there is no suffix.
+CUSTOM_KEY_MODE_SUFFIX = {MODE_INSERT: '_insert', MODE_NORMAL: '_normal', MODE_NOMODE: ''}
 
 class ConfigLoadError(Exception):
 	pass
@@ -220,11 +237,6 @@ class VimAsync(object):
 		self.callback(*self.callback_args)
 		vim.command('call feedkeys("\\<C-A>")')
 
-# Modes that File Pirate can be in.
-MODE_INSERT = 1
-MODE_NORMAL = 2
-MODE_NOMODE = 3
-
 class VimFilePirate(object):
 	"""
 	Main object. Singleton (one per Vim process).
@@ -301,12 +313,31 @@ class VimFilePirate(object):
 		for key in KEYS['insert']:
 			ascii_val = ord(key)
 			vim.command('noremap <silent> <buffer> <Char-%d> :python filepirate_key(%d)<CR>' % (ascii_val, ascii_val))
+
+	def _buffer_unregister_keys_standard(self):
+		for key in KEYS['insert']:
+			ascii_val = ord(key)
+			vim.command('nunmap <silent> <buffer> <Char-%d>' % (ascii_val))
 	
+	def _maybe_get_custom_key_mapping(self, cmd, keyname):
+		key_customisation_name = 'g:%s%s' % (cmd, CUSTOM_KEY_MODE_SUFFIX[self.mode])
+		if vim.eval('exists("%s")' % (key_customisation_name)) != '0':
+			keyname = vim.eval('%s' % (key_customisation_name))
+		return keyname
+
 	def _buffer_register_keys_special(self, keys):
-		for keyname, cmd in keys.items():
-			if vim.eval('exists("g:%s")' % (cmd)) != '0':
-				keyname = vim.eval('g:%s' % (cmd))
-			vim.command('noremap <silent> <buffer> %s :python %s()<CR>' % (keyname, cmd))
+		for cmd, keyname in keys.items():
+
+			keyname = self._maybe_get_custom_key_mapping(cmd, keyname)
+			if keyname:
+				vim.command('noremap <silent> <buffer> %s :python %s()<CR>' % (keyname, cmd))
+
+	def _buffer_unregister_keys_special(self, keys):
+		for cmd, keyname in keys.items():
+
+			keyname = self._maybe_get_custom_key_mapping(cmd, keyname)
+			if keyname:
+				vim.command('nunmap <silent> <buffer> %s' % (keyname))
 
 	def buffer_register_keys(self):
 		# This removes ALL mappings and is probably not what you want.
@@ -317,7 +348,6 @@ class VimFilePirate(object):
 			self._buffer_register_keys_standard()
 			self._buffer_register_keys_special(KEYS['dualmode_insert'])
 		elif self.mode == MODE_NORMAL:
-			self._buffer_register_keys_special(KEYS['normal'])
 			self._buffer_register_keys_special(KEYS['dualmode_normal'])
 		else:
 			# Original behaviour, no explicit modes.
@@ -325,23 +355,11 @@ class VimFilePirate(object):
 			self._buffer_register_keys_standard()
 			self._buffer_register_keys_special(KEYS['normal'])
 	
-	def _buffer_unregister_keys_standard(self):
-		for key in KEYS['insert']:
-			ascii_val = ord(key)
-			vim.command('nunmap <silent> <buffer> <Char-%d>' % (ascii_val))
-	
-	def _buffer_unregister_keys_special(self, keys):
-		for keyname, cmd in keys.items():
-			if vim.eval('exists("g:%s")' % (cmd)) != '0':
-				keyname = vim.eval('g:%s' % (cmd))
-			vim.command('nunmap <silent> <buffer> %s' % (keyname))
-
 	def buffer_unregister_keys(self):
 		if self.mode == MODE_INSERT:
 			self._buffer_unregister_keys_standard()
 			self._buffer_unregister_keys_special(KEYS['dualmode_insert'])
 		elif self.mode == MODE_NORMAL:
-			self._buffer_unregister_keys_special(KEYS['normal'])
 			self._buffer_unregister_keys_special(KEYS['dualmode_normal'])
 		else:
 			# Original behaviour, no explicit modes.

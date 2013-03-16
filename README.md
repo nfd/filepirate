@@ -38,13 +38,23 @@ You may also want to run `:Helptags` inside Vim, to generate the documentation (
 
 Usage
 -----
-Press &lt;Leader&gt;-T to bring up the File Pirate window. Typically the Vim leader is a backslash, so this would be \\t. Start typing a filename, and files will appear below the search term you type. To select a file, move the cursor using the up and down arrows, and press enter to load the file. When the window opens, the cursor is already positioned on the first result, so if the first match is the one you want you can just hit enter.
+Press &lt;Leader&gt;-t to bring up the File Pirate window. Typically the Vim leader is a backslash, so this would be \\t. Start typing a filename, and files will appear below the search term you type. To select a file, move the cursor using the up and down arrows, and press enter to load the file. When the window opens, the cursor is already positioned on the first result, so if the first match is the one you want you can just hit enter.
 
 File Pirate doesn't rescan the directory contents each time it is opened, which is a problem if you add or remove files. To get it to rescan, press &lt;CTRL-R&gt;.
 
 If you decide you don't actually want to load a file, press &lt;ESC&gt;&lt;ESC&gt; to close the File Pirate window.
 
 That's about it, really.
+
+Modal usage
+-----------
+As an alternative to the regular usage described above, File Pirate can also be used *modally*, just like Vim itself. To configure File Pirate for modal usage, add `let g:filepirate_is_modal=1` to your `.vimrc`.
+
+When using File Pirate this way, things are initially the same as non-modal usage. Press &lt;Leader&gt;-t to bring up the File Pirate window and start typing a filename. When summoned, File Pirate is in *insert mode*, which means that typing letters or numbers will add them to the File Pirate search on the top line.
+
+If you press `<ESC>`, File Pirate enters *normal mode*. In this mode, most of File Pirate's keys are unmapped, so you can do Vim things such as search the buffer, yank filenames, and so on. If you press `<Enter>` on a file name, it will be loaded as normal, and you can press ESC twice to exit as usual.
+
+While in normal mode, pressing `i` will re-enter insert mode.
 
 Customising the keys
 --------------------
@@ -70,6 +80,14 @@ You can use the same technique to change the following additional key bindings, 
 * `g:filepirate_accept`: close File Pirate, and open the file under the cursor (default: &lt;CR&gt;).
 * `g:filepirate_cancel`: close File Pirate (default: &lt;Esc&gt; &lt;Esc&gt;).
 
+Customising the keys for modal usage
+------------------------------------
+When `g:filepirate_is_modal` is set, File Pirate uses separate customisations for normal and insert mode. In normal mode, the customisations are as above but with `_normal` appended, and in insert mode, they are as above but with `_insert` appended.
+
+For example, `g:filepirate_up_normal` defines the mapping for "up" in normal mode, and `g:filepirate_up_insert` defines the mapping for "up" in insert mode.
+
+You can also completely disable keys by mapping them to the empty string, `""`. For example, you may want to completely disable cursor keys normal mode, and can do so with `let g:filepirate_up_normal=""` (and the same for `filepirate_down`).
+
 Other customisations
 --------------------
 You can change the maximum number of results that File Pirate displays by setting `g:filepirate_max_results` to some integer. The default value is 10. For example, to show 20 results, put this in your .vimrc:
@@ -77,6 +95,32 @@ You can change the maximum number of results that File Pirate displays by settin
     let g:filepirate_max_results=20
 
 Very large values might make File Pirate slow.
+
+Configuration examples
+----------------------
+
+**Option 1: Nothing**
+
+The simplest example configuration is to add nothing at all to your configuration. By default:
+ * File Pirate is will start with <Leader>t, which usually means \t unless you've remapped your leader.
+ * When summoned, typing characters will immediately start searching for files.
+ * Pressing enter will select the file
+ * Pressing ESC twice will quit File Pirate.
+
+**Option 2: Custom keys**
+
+    let g:filepirate_map_leader=0
+    nmap ff :python filepirate_open()<CR>
+    let g:filepirate_accept="<Tab>"
+
+This is a simple custom configuration of File Pirate. It disables the default <Leader>t mapping and instead maps `ff` to open File Pirate. It maps `<Tab>` to the "accept" key.
+
+**Option 3: Modal File Pirate**
+
+    let g:filepirate_is_modal=1
+	let g:filepirate_bs_normal="<BS>"
+
+This sets up File Pirate to be modal (see "Modal usage" and "Customising the keys for modal usage" above). It maps backspace to delete from the File Pirate search string even in normal mode (by default, it's not mapped).
 
 Warning
 -------
