@@ -43,16 +43,35 @@ GLOBAL_OPTIONS = {
 	'showcmd': False, # Show what's being typed in the status bar
 }
 
-NORMAL_KEYS = string.letters + string.digits + ' .'
-SPECIAL_KEYS = {'<CR>': 'filepirate_accept',
+KEYS = {
+	# If g:filepirate_is_modal is false, then 'insert' is mapped for entering file names, and 'normal' is mapped
+	# to control File Pirate.
+	'insert': string.letters + string.digits + ' .',
+	'normal':{
+		'<CR>': 'filepirate_accept',
 		'<Char-27><Char-27>': 'filepirate_cancel',
 		'<Up>': 'filepirate_up',
 		'<Down>': 'filepirate_down',
 		'<BS>': 'filepirate_bs',
-		'<C-R>': 'filepirate_rescan'}
+		'<C-R>': 'filepirate_rescan'},
+
+	# If g:filepirate_is_modal is true, then:
+	# - In insert mode, 'insert' and 'dualmode_insert' are mapped.
+	# - In normal mode, 'normal' and 'dualmode_normal' are mapped.
+	'dualmode_normal': {
+		'k': 'filepirate_up',
+		'j': 'filepirate_down',
+		'i': 'filepirate_enter_insert_mode'},
+	'dualmode_insert': {
+		'<Char-27>': 'filepirate_enter_normal_mode',
+		'<CR>': 'filepirate_accept',
+		'<BS>': 'filepirate_bs',
+		'<C-R>': 'filepirate_rescan'},
+}
 
 # Configuration
-CONFIGURABLES = {'g:filepirate_max_results': (int, 10)}
+CONFIGURABLES = {'g:filepirate_max_results': (int, 10),
+		'g:filepirate_is_modal': (int, 0)}
 
 # Shown while reloading directory information
 SPINNER = r'/-\|'
@@ -83,7 +102,8 @@ class FilePirateThread(threading.Thread):
 
 	TODO: An obvious improvement is to add support for cancelling in-progress
 	searches, perhaps with a flag that the native code can check once per
-	directory.
+	directory, or possibly just by having a separate search thread and killing
+	it off.
 	"""
 	def __init__(self, max_results):
 		threading.Thread.__init__(self)
@@ -200,6 +220,11 @@ class VimAsync(object):
 		self.callback(*self.callback_args)
 		vim.command('call feedkeys("\\<C-A>")')
 
+# Modes that File Pirate can be in.
+MODE_INSERT = 1
+MODE_NORMAL = 2
+MODE_NOMODE = 3
+
 class VimFilePirate(object):
 	"""
 	Main object. Singleton (one per Vim process).
@@ -217,9 +242,9 @@ class VimFilePirate(object):
 	
 	def reset(self):
 		self.term = '' # search term
-		self.selected = 0
 		self.spinner_character = ' '
 		self.spinner_position = 0
+		self.mode = MODE_NOMODE
 
 	def buffer_create(self):
 		self.config_load()
@@ -233,6 +258,12 @@ class VimFilePirate(object):
 
 		assert 'FilePirate' in vim.current.buffer.name
 
+		# Set the mode
+		if self.config['g:filepirate_is_modal']:
+			self.mode = MODE_INSERT
+		else:
+			self.mode = MODE_NOMODE
+
 		# Set up the window.
 		self.buffer_register_keys()
 		self.buf = vim.current.buffer
@@ -243,7 +274,7 @@ class VimFilePirate(object):
 			if len(self.buf) - 2 < idx:
 				self.buf.append('')
 		self.lock_buffer()
-		self.cursor_to_selected()
+		vim.current.window.cursor = (2, 0)
 	
 	def config_load(self):
 		self.config = {}
@@ -266,18 +297,57 @@ class VimFilePirate(object):
 
 			self.config[key] = value
 
-	def cursor_to_selected(self):
-		vim.current.window.cursor = (2 + self.selected, 0)
+	def _buffer_register_keys_standard(self):
+		for key in KEYS['insert']:
+			ascii_val = ord(key)
+			vim.command('noremap <silent> <buffer> <Char-%d> :python filepirate_key(%d)<CR>' % (ascii_val, ascii_val))
 	
-	def buffer_register_keys(self):
-		for key in NORMAL_KEYS:
-			ascii = ord(key)
-			vim.command('noremap <silent> <buffer> <Char-%d> :python filepirate_key(%d)<CR>' % (ascii, ascii))
-
-		for keyname, cmd in SPECIAL_KEYS.items():
+	def _buffer_register_keys_special(self, keys):
+		for keyname, cmd in keys.items():
 			if vim.eval('exists("g:%s")' % (cmd)) != '0':
 				keyname = vim.eval('g:%s' % (cmd))
 			vim.command('noremap <silent> <buffer> %s :python %s()<CR>' % (keyname, cmd))
+
+	def buffer_register_keys(self):
+		# This removes ALL mappings and is probably not what you want.
+		# vim.command('nmapclear <buffer>')
+
+		# Add new ones based on mode.
+		if self.mode == MODE_INSERT:
+			self._buffer_register_keys_standard()
+			self._buffer_register_keys_special(KEYS['dualmode_insert'])
+		elif self.mode == MODE_NORMAL:
+			self._buffer_register_keys_special(KEYS['normal'])
+			self._buffer_register_keys_special(KEYS['dualmode_normal'])
+		else:
+			# Original behaviour, no explicit modes.
+			assert self.mode == MODE_NOMODE
+			self._buffer_register_keys_standard()
+			self._buffer_register_keys_special(KEYS['normal'])
+	
+	def _buffer_unregister_keys_standard(self):
+		for key in KEYS['insert']:
+			ascii_val = ord(key)
+			vim.command('nunmap <silent> <buffer> <Char-%d>' % (ascii_val))
+	
+	def _buffer_unregister_keys_special(self, keys):
+		for keyname, cmd in keys.items():
+			if vim.eval('exists("g:%s")' % (cmd)) != '0':
+				keyname = vim.eval('g:%s' % (cmd))
+			vim.command('nunmap <silent> <buffer> %s' % (keyname))
+
+	def buffer_unregister_keys(self):
+		if self.mode == MODE_INSERT:
+			self._buffer_unregister_keys_standard()
+			self._buffer_unregister_keys_special(KEYS['dualmode_insert'])
+		elif self.mode == MODE_NORMAL:
+			self._buffer_unregister_keys_special(KEYS['normal'])
+			self._buffer_unregister_keys_special(KEYS['dualmode_normal'])
+		else:
+			# Original behaviour, no explicit modes.
+			assert self.mode == MODE_NOMODE
+			self._buffer_unregister_keys_standard()
+			self._buffer_unregister_keys_special(KEYS['normal'])
 	
 	def search_poll(self):
 		if self.searching is True:
@@ -365,7 +435,8 @@ class VimFilePirate(object):
 	
 	def filepirate_accept(self):
 		" Close the File Pirate window and switch to the selected file "
-		filename = self.buf[self.selected + 1][1:]
+		y, x = vim.current.window.cursor
+		filename = self.buf[y - 1][1:]
 		filename = filename.replace(' ', r'\ ')
 		self.filepirate_close()
 
@@ -377,15 +448,17 @@ class VimFilePirate(object):
 	
 	def filepirate_up(self):
 		" Move cursor up "
-		if self.selected > 0:
-			self.selected -= 1
-		self.cursor_to_selected()
+		y, x = vim.current.window.cursor
+		if y > 1:
+			y -= 1
+			vim.current.window.cursor = (y, x)
 	
 	def filepirate_down(self):
 		" Move cursor down "
-		if self.selected < self.config['g:filepirate_max_results'] - 1:
-			self.selected += 1
-		self.cursor_to_selected()
+		y, x = vim.current.window.cursor
+		if y < self.config['g:filepirate_max_results']:
+			y += 1
+			vim.current.window.cursor = (y, x)
 	
 	def filepirate_bs(self):
 		" Backspace "
@@ -398,6 +471,19 @@ class VimFilePirate(object):
 		self.fp.rescan()
 		if self.term:
 			self.search(self.term)
+	
+	def filepirate_enter_insert_mode(self):
+		pass
+
+	def filepirate_enter_normal_mode(self):
+		self.buffer_unregister_keys()
+		self.mode = MODE_NORMAL
+		self.buffer_register_keys()
+	
+	def filepirate_enter_insert_mode(self):
+		self.buffer_unregister_keys()
+		self.mode = MODE_INSERT
+		self.buffer_register_keys()
 
 # Singleton
 vim_file_pirate = VimFilePirate()
@@ -412,4 +498,7 @@ filepirate_up       = vim_file_pirate.filepirate_up
 filepirate_down     = vim_file_pirate.filepirate_down
 filepirate_bs       = vim_file_pirate.filepirate_bs
 filepirate_rescan   = vim_file_pirate.filepirate_rescan
+filepirate_enter_insert_mode = vim_file_pirate.filepirate_enter_insert_mode
+filepirate_enter_normal_mode = vim_file_pirate.filepirate_enter_normal_mode
+
 
