@@ -102,10 +102,8 @@ Configuration examples
 **Option 1: Nothing**
 
 The simplest example configuration is to add nothing at all to your configuration. By default:
- * File Pirate is will start with <Leader>t, which usually means \t unless you've remapped your leader.
- * When summoned, typing characters will immediately start searching for files.
- * Pressing enter will select the file
- * Pressing ESC twice will quit File Pirate.
+ * File Pirate is summoned by `<Leader>t`, which usually means `\t` unless you've remapped your leader.
+ * When summoned, typing characters will immediately start searching for files, the arrow keys select, Enter chooses a file, and ESC ESC cancels.
 
 **Option 2: Custom keys**
 
