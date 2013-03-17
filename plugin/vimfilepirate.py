@@ -76,9 +76,11 @@ KEYS = {
 		'filepirate_enter_normal_mode': '<Char-27>'},
 }
 
-# Configuration
+# Configuration (in addition to custom keys, above)
 CONFIGURABLES = {'g:filepirate_max_results': (int, 10),
-		'g:filepirate_is_modal': (int, 0)}
+		'g:filepirate_is_modal': (int, 0),
+		'g:filepirate_map_extra_normal': (dict, {}),
+		'g:filepirate_map_extra_insert': (dict, {})}
 
 # Shown while reloading directory information
 SPINNER = r'/-\|'
@@ -298,6 +300,9 @@ class VimFilePirate(object):
 				try:
 					if key_class is int:
 						value = int(value)
+					elif key_class is dict:
+						# Nothing special to do
+						pass
 					else:
 						raise NotImplementedError(key_class)
 				except Exception as e:
@@ -339,6 +344,14 @@ class VimFilePirate(object):
 			if keyname:
 				vim.command('nunmap <silent> <buffer> %s' % (keyname))
 
+	def _buffer_register_keys_extra(self, keys):
+		for keyname, cmd in keys.items():
+			vim.command('noremap <silent> <buffer> %s %s' % (keyname, cmd))
+
+	def _buffer_unregister_keys_extra(self, keys):
+		for keyname in keys.keys():
+			vim.command('nunmap <silent> <buffer> %s' % (keyname))
+
 	def buffer_register_keys(self):
 		# This removes ALL mappings and is probably not what you want.
 		# vim.command('nmapclear <buffer>')
@@ -347,8 +360,10 @@ class VimFilePirate(object):
 		if self.mode == MODE_INSERT:
 			self._buffer_register_keys_standard()
 			self._buffer_register_keys_special(KEYS['dualmode_insert'])
+			self._buffer_register_keys_extra(self.config['g:filepirate_map_extra_insert'])
 		elif self.mode == MODE_NORMAL:
 			self._buffer_register_keys_special(KEYS['dualmode_normal'])
+			self._buffer_register_keys_extra(self.config['g:filepirate_map_extra_normal'])
 		else:
 			# Original behaviour, no explicit modes.
 			assert self.mode == MODE_NOMODE
@@ -359,8 +374,10 @@ class VimFilePirate(object):
 		if self.mode == MODE_INSERT:
 			self._buffer_unregister_keys_standard()
 			self._buffer_unregister_keys_special(KEYS['dualmode_insert'])
+			self._buffer_unregister_keys_extra(self.config['g:filepirate_map_extra_insert'])
 		elif self.mode == MODE_NORMAL:
 			self._buffer_unregister_keys_special(KEYS['dualmode_normal'])
+			self._buffer_unregister_keys_extra(self.config['g:filepirate_map_extra_normal'])
 		else:
 			# Original behaviour, no explicit modes.
 			assert self.mode == MODE_NOMODE
@@ -451,10 +468,14 @@ class VimFilePirate(object):
 		self.fp.search(self.term)
 		self.searching = True
 	
-	def filepirate_accept(self):
+	def filepirate_accept(self, line_number = None):
 		" Close the File Pirate window and switch to the selected file "
-		y, x = vim.current.window.cursor
-		filename = self.buf[y - 1][1:]
+		if line_number is None:
+			y, x = vim.current.window.cursor
+			filename = self.buf[y - 1][1:]
+		else:
+			# 0-indexed
+			filename = self.buf[line_number + 1][1:]
 		filename = filename.replace(' ', r'\ ')
 		self.filepirate_close()
 
