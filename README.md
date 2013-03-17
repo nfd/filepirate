@@ -88,6 +88,15 @@ For example, `g:filepirate_up_normal` defines the mapping for "up" in normal mod
 
 You can also completely disable keys by mapping them to the empty string, `""`. For example, you may want to completely disable cursor keys normal mode, and can do so with `let g:filepirate_up_normal=""` (and the same for `filepirate_down`).
 
+There are several extra mappings provided for modal usage:
+
+* `g:filepirate_enter_insert_mode`: enter insert mode (default: `i`)
+* `g:filepirate_enter_normal_mode`: enter normal mode (default: `<Esc>`)
+* `g:filepirate_map_extra_normal`: additional key mappings for normal mode (default: {})
+* `g:filepirate_map_extra_insert`: additional key mappings for insert mode (default: {})
+
+The final two mappings let you add customisations to File Pirate by mapping keys for specific modes. Each mapping is a (Vim) dictionary, where the dict key is the key (or key sequence) to map, and the dict value is the value to map it to. For example usage, see "Configuration examples", below.
+
 Other customisations
 --------------------
 You can change the maximum number of results that File Pirate displays by setting `g:filepirate_max_results` to some integer. The default value is 10. For example, to show 20 results, put this in your .vimrc:
@@ -95,6 +104,10 @@ You can change the maximum number of results that File Pirate displays by settin
     let g:filepirate_max_results=20
 
 Very large values might make File Pirate slow.
+
+For completeness, the complete list of other customisations are:
+* `g:filepirate_max_results`: number of values displayed. Default: 10
+* `g:filepirate_is_modal`: whether File Pirate uses modes (see above). Default: 0
 
 Configuration examples
 ----------------------
@@ -117,8 +130,14 @@ This is a simple custom configuration of File Pirate. It disables the default <L
 
     let g:filepirate_is_modal=1
 	let g:filepirate_bs_normal="<BS>"
+    let g:filepirate_map_extra_normal={}
+    let g:filepirate_map_extra_normal["1"]=":python filepirate_accept(0)<CR>"
+    let g:filepirate_map_extra_normal["2"]=":python filepirate_accept(1)<CR>"
+    let g:filepirate_map_extra_normal["3"]=":python filepirate_accept(2)<CR>"
 
 This sets up File Pirate to be modal (see "Modal usage" and "Customising the keys for modal usage" above). It maps backspace to delete from the File Pirate search string even in normal mode (by default, it's not mapped).
+
+It then sets up some extra mappings for normal mode. In normal mode only, pressing 1 will load the first file in the list, pressing '2' will load the second, and '3' will load the third.
 
 Warning
 -------
