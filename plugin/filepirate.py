@@ -6,7 +6,7 @@ import sys
 import ctypes
 import time
 
-SONAME = os.path.join(os.path.dirname(__file__), 'cfilepirate.so')
+SONAME = os.path.abspath(os.path.join(os.path.dirname(__file__), 'cfilepirate.so'))
 MAX_PIRATES = 5
 
 class Candidate(ctypes.Structure):
@@ -58,15 +58,17 @@ class FilePirate(object):
 	
 	def __del__(self):
 		if self.native:
-			self.native.fp_candidate_list_destroy(self.candidates)
-			self.native.fp_deinit(self.handle)
+			if hasattr(self, 'candidates'):
+				self.native.fp_candidate_list_destroy(self.candidates)
+			if hasattr(self, 'handle'):
+				self.native.fp_deinit(self.handle)
 	
 	def rescan(self):
 		self.__del__()
 		self.create()
 	
 	def create(self):
-		self.handle = self.native.fp_init(self.root)
+		self.handle = self.native.fp_init(self.root.encode('utf-8'))
 		if bool(self.handle) == False: # ctypes-speak for handle == NULL
 			raise Error("fp_init")
 
@@ -75,7 +77,7 @@ class FilePirate(object):
 			raise Error("fp_candidate_list_create")
 
 	def get_candidates(self, search_term):
-		result = self.native.fp_get_candidates(self.handle, search_term, len(search_term), self.candidates)
+		result = self.native.fp_get_candidates(self.handle, search_term.encode('utf-8'), len(search_term), self.candidates)
 		if not result:
 			raise Error("fp_get_candidates")
 
@@ -86,7 +88,7 @@ class FilePirate(object):
 			if candidate.goodness == -1:
 				# That's it
 				break
-			candidates.append(os.path.join(candidate.dirname, candidate.filename))
+			candidates.append(os.path.join(candidate.dirname.decode('utf-8'), candidate.filename.decode('utf-8')))
 			candidate = candidate.worse
 
 		return candidates
@@ -118,8 +120,8 @@ if __name__ == '__main__':
 	dirname = sys.argv[1]
 	searchterm = sys.argv[2]
 	fp = FilePirate(dirname, 10)
-	print fp.get_candidates(searchterm)
+	print (fp.get_candidates(searchterm))
 	t = time.time()
-	print fp.get_candidates(searchterm)
-	print time.time() - t
+	print (fp.get_candidates(searchterm))
+	print (time.time() - t)
 

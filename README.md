@@ -124,7 +124,7 @@ The simplest example configuration is to add nothing at all to your configuratio
     nmap ff :python filepirate_open()<CR>
     let g:filepirate_accept="<Tab>"
 
-This is a simple custom configuration of File Pirate. It disables the default <Leader>t mapping and instead maps `ff` to open File Pirate. It maps `<Tab>` to the "accept" key.
+This is a simple custom configuration of File Pirate. It disables the default &lt;Leader&gt;t mapping and instead maps `ff` to open File Pirate. It maps `<Tab>` to the "accept" key.
 
 **Option 3: Modal File Pirate**
 

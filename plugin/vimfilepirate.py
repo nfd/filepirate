@@ -46,7 +46,7 @@ GLOBAL_OPTIONS = {
 KEYS = {
 	# If g:filepirate_is_modal is false, then 'insert' is mapped for entering file names, and 'normal' is mapped
 	# to control File Pirate.
-	'insert': string.letters + string.digits + ' .',
+	'insert': string.ascii_letters + string.digits + ' .',
 	'normal':{
 		'filepirate_accept': '<CR>',
 		'filepirate_cancel': '<Char-27><Char-27>',
@@ -223,9 +223,9 @@ class VimAsync(object):
 			# Set up our CursorHold autocommand callback
 			self.saved_updatetime = int(vim.eval('&updatetime'))
 			vim.command('set updatetime=%d' % (POLL_INTERVAL))
-			vim.command("au CursorHold * python filepirate_callback()")
+			vim.command("au CursorHold * python3 filepirate_callback()")
 			# The magic key we remap for KeyHold timer updates
-			vim.command('noremap <silent> <buffer> <C-A> :python ""<CR>')
+			vim.command('noremap <silent> <buffer> <C-A> :python3 ""<CR>')
 			self.running = True
 	
 	def stop(self):
@@ -317,7 +317,7 @@ class VimFilePirate(object):
 	def _buffer_register_keys_standard(self):
 		for key in KEYS['insert']:
 			ascii_val = ord(key)
-			vim.command('noremap <silent> <buffer> <Char-%d> :python filepirate_key(%d)<CR>' % (ascii_val, ascii_val))
+			vim.command('noremap <silent> <buffer> <Char-%d> :python3 filepirate_key(%d)<CR>' % (ascii_val, ascii_val))
 
 	def _buffer_unregister_keys_standard(self):
 		for key in KEYS['insert']:
@@ -335,7 +335,7 @@ class VimFilePirate(object):
 
 			keyname = self._maybe_get_custom_key_mapping(cmd, keyname)
 			if keyname:
-				vim.command('noremap <silent> <buffer> %s :python %s()<CR>' % (keyname, cmd))
+				vim.command('noremap <silent> <buffer> %s :python3 %s()<CR>' % (keyname, cmd))
 
 	def _buffer_unregister_keys_special(self, keys):
 		for cmd, keyname in keys.items():
@@ -506,7 +506,7 @@ class VimFilePirate(object):
 	
 	def filepirate_rescan(self):
 		" Rescan the current directory "
-		print "rescan"
+		print ("rescan")
 		self.fp.rescan()
 		if self.term:
 			self.search(self.term)
