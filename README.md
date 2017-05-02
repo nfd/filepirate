@@ -23,7 +23,7 @@ Requirements
 ------------
 You'll need:
 
-1. Vim with Python version 2.5 or later.
+1. Vim with Python 3.
 2. A C compiler to build File Pirate's native library.
 3. A forthright, go-get-'em attitude (actually this isn't strictly necessary or, arguably, always desirable).
 
@@ -64,9 +64,9 @@ To customise the open command, first disable File Pirate's default behaviour in 
 
     let g:filepirate_map_leader=0
 
-Then map whatever you like to invoke `"python filepirate_open()"`. For example, to map Ctrl-T to File Pirate, use:
+Then map whatever you like to invoke `"python3 filepirate_open()"`. For example, to map Ctrl-T to File Pirate, use:
 
-    nmap <C-t> :python filepirate_open()<CR>
+    nmap <C-t> :python3 filepirate_open()<CR>
 
 To customise the rescan command, assign the sequence you want to the global variable `filepirate_rescan`. For example, to use F5 to rescan:
 
@@ -121,7 +121,7 @@ The simplest example configuration is to add nothing at all to your configuratio
 **Option 2: Custom keys**
 
     let g:filepirate_map_leader=0
-    nmap ff :python filepirate_open()<CR>
+    nmap ff :python3 filepirate_open()<CR>
     let g:filepirate_accept="<Tab>"
 
 This is a simple custom configuration of File Pirate. It disables the default &lt;Leader&gt;t mapping and instead maps `ff` to open File Pirate. It maps `<Tab>` to the "accept" key.
@@ -131,9 +131,9 @@ This is a simple custom configuration of File Pirate. It disables the default &l
     let g:filepirate_is_modal=1
 	let g:filepirate_bs_normal="<BS>"
     let g:filepirate_map_extra_normal={}
-    let g:filepirate_map_extra_normal["1"]=":python filepirate_accept(0)<CR>"
-    let g:filepirate_map_extra_normal["2"]=":python filepirate_accept(1)<CR>"
-    let g:filepirate_map_extra_normal["3"]=":python filepirate_accept(2)<CR>"
+    let g:filepirate_map_extra_normal["1"]=":python3 filepirate_accept(0)<CR>"
+    let g:filepirate_map_extra_normal["2"]=":python3 filepirate_accept(1)<CR>"
+    let g:filepirate_map_extra_normal["3"]=":python3 filepirate_accept(2)<CR>"
 
 This sets up File Pirate to be modal (see "Modal usage" and "Customising the keys for modal usage" above). It maps backspace to delete from the File Pirate search string even in normal mode (by default, it's not mapped).
 
