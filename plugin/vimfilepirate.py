@@ -46,7 +46,7 @@ GLOBAL_OPTIONS = {
 KEYS = {
 	# If g:filepirate_is_modal is false, then 'insert' is mapped for entering file names, and 'normal' is mapped
 	# to control File Pirate.
-	'insert': string.ascii_letters + string.digits + ' .',
+	'insert': string.ascii_letters + string.digits + ' ._',
 	'normal':{
 		'filepirate_accept': '<CR>',
 		'filepirate_cancel': '<Char-27><Char-27>',
