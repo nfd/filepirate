@@ -80,7 +80,8 @@ KEYS = {
 CONFIGURABLES = {'g:filepirate_max_results': (int, 10),
 		'g:filepirate_is_modal': (int, 0),
 		'g:filepirate_map_extra_normal': (dict, {}),
-		'g:filepirate_map_extra_insert': (dict, {})}
+		'g:filepirate_map_extra_insert': (dict, {}),
+		'g:filepirate_negative_filter': (list, [])}
 
 # Shown while reloading directory information
 SPINNER = r'/-\|'
@@ -280,6 +281,10 @@ class VimFilePirate(object):
 
 		assert 'FilePirate' in vim.current.buffer.name
 
+		# Set filters
+		for negative in self.config['g:filepirate_negative_filter']:
+			filepirate_add_negative_filter(negative)	
+
 		# Set the mode
 		if self.config['g:filepirate_is_modal']:
 			self.mode = MODE_INSERT
@@ -308,7 +313,7 @@ class VimFilePirate(object):
 				try:
 					if key_class is int:
 						value = int(value)
-					elif key_class is dict:
+					elif key_class in (list, dict):
 						# Nothing special to do
 						pass
 					else:
