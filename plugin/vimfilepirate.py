@@ -330,7 +330,7 @@ class VimFilePirate(object):
 	def _buffer_register_keys_standard(self):
 		for key in KEYS['insert']:
 			ascii_val = ord(key)
-			vim.command('noremap <silent> <buffer> <Char-%d> :python3 filepirate_key(%d)<CR>' % (ascii_val, ascii_val))
+			vim.command('noremap <silent> <buffer> <nowait> <Char-%d> :python3 filepirate_key(%d)<CR>' % (ascii_val, ascii_val))
 
 	def _buffer_unregister_keys_standard(self):
 		for key in KEYS['insert']:
