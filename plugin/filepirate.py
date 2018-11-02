@@ -24,11 +24,14 @@ class CandidateList(ctypes.Structure):
 		('worst', ctypes.POINTER(Candidate)),
 		('max_candidates', ctypes.c_int)]
 
-PROTOTYPES = {'fp_init': (ctypes.c_void_p, [ctypes.c_char_p]),
-		'fp_deinit': (ctypes.c_bool, [ctypes.c_void_p]),
-		'fp_candidate_list_create': (ctypes.POINTER(CandidateList), [ctypes.c_int]),
-		'fp_candidate_list_destroy': (None, [ctypes.c_void_p]),
-		'fp_get_candidates': (ctypes.c_bool, [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_void_p])
+PROTOTYPES = {'fp_init': (ctypes.c_void_p, []),
+			  'fp_init_dir': (ctypes.c_bool, [ctypes.c_void_p, ctypes.c_char_p]),
+              'fp_deinit': (ctypes.c_bool, [ctypes.c_void_p]),
+              'fp_candidate_list_create': (ctypes.POINTER(CandidateList), [ctypes.c_int]),
+              'fp_candidate_list_destroy': (None, [ctypes.c_void_p]),
+              'fp_get_candidates': (ctypes.c_bool, [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_void_p]),
+			  'fp_filter_add_negative': (None, [ctypes.c_void_p, ctypes.c_char_p]),
+			  'fp_filter_add_positive': (None, [ctypes.c_void_p, ctypes.c_char_p]),
 }
 
 class Error(Exception):
@@ -41,7 +44,7 @@ class FilePirate(object):
 	# Class static
 	native = None
 
-	def __init__(self, root, max_candidates):
+	def __init__(self, root, max_candidates, negative_filters, positive_filters):
 		self.root = root
 
 		if self.__class__.native is None:
@@ -54,6 +57,8 @@ class FilePirate(object):
 				obj.argtypes = argtypes
 
 		self.max_candidates = max_candidates
+		self.negative_filters = negative_filters
+		self.positive_filters = positive_filters
 		self.create()
 	
 	def __del__(self):
@@ -68,9 +73,18 @@ class FilePirate(object):
 		self.create()
 	
 	def create(self):
-		self.handle = self.native.fp_init(self.root.encode('utf-8'))
+		self.handle = self.native.fp_init()
 		if bool(self.handle) == False: # ctypes-speak for handle == NULL
 			raise Error("fp_init")
+
+		for negative in self.negative_filters:
+			self.native.fp_filter_add_negative(self.handle, negative.encode('utf-8'))
+
+		for positive in self.positive_filters:
+			self.native.fp_filter_add_positive(self.handle, positive.encode('utf-8'))
+
+		if not self.native.fp_init_dir(self.handle, self.root.encode('utf-8')):
+			raise Error("fp_init_dir")
 
 		self.candidates = self.native.fp_candidate_list_create(self.max_candidates)
 		if self.candidates == None:
@@ -93,12 +107,15 @@ class FilePirate(object):
 
 		return candidates
 
+
 class FilePirates(object):
 	"""
 	A set of FilePirate objects. Keeps only MAX_PIRATES in memory. Eviction is LRU.
 	"""
 	def __init__(self, max_candidates):
 		self.pirates = []
+		self.negative_filter = []
+		self.positive_filter = []
 		self.max_candidates = max_candidates
 
 	def get(self, root):
@@ -110,18 +127,25 @@ class FilePirates(object):
 		else:
 			if len(self.pirates) >= MAX_PIRATES:
 				self.pirates.pop()
-			pirate = FilePirate(root, self.max_candidates)
+			pirate = FilePirate(root, self.max_candidates, self.negative_filter, self.positive_filter)
 
 		self.pirates.insert(0, pirate)
 		return pirate
+
+	def add_negative_filter(self, filter):
+		self.negative_filter.append(filter)
+
+	def add_positive_filter(self, filter):
+		self.positive_filter.append(filter)
 
 if __name__ == '__main__':
 	# test it
 	dirname = sys.argv[1]
 	searchterm = sys.argv[2]
-	fp = FilePirate(dirname, 10)
+	fp = FilePirate(dirname, 10, [], [])
 	print (fp.get_candidates(searchterm))
 	t = time.time()
 	print (fp.get_candidates(searchterm))
 	print (time.time() - t)
 
+# vim: sw=4 noet ts=4:

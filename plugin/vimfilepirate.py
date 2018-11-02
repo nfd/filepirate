@@ -133,15 +133,16 @@ class FilePirateThread(threading.Thread):
 		self.results = None
 		self.rescan_requested = False
 		if DUMMY_FILEPIRATE:
-			self.do_search = self.do_search_dummy
+			self.do_search = self._do_search_dummy
 			self.dummy_counter = 0
 		else:
-			self.do_search = self.do_search_fp
+			self.do_search = self._do_search_fp
 			self.pirates = filepirate.FilePirates(max_results)
 
 	def run(self):
 		while True:
 			self.lock.acquire()
+
 			if not self.search_terms:
 				self.lock.release()
 				self.event.wait()
@@ -165,7 +166,8 @@ class FilePirateThread(threading.Thread):
 				self.event.clear()
 				self.lock.release()
 	
-	def do_search_fp(self, term):
+	def _do_search_fp(self, term):
+		# called from within thread -- actually search
 		try:
 			pirate = self.pirates.get(os.getcwd())
 		except Exception as e:
@@ -183,7 +185,8 @@ class FilePirateThread(threading.Thread):
 		results = [result[2:] if result.startswith('./') else result for result in results]
 		return results
 
-	def do_search_dummy(self, term):
+	def _do_search_dummy(self, term):
+		# called from within thread -- pretend to search
 		self.dummy_counter += 1
 		time.sleep(DUMMY_FILEPIRATE_DELAY)
 		self.rescan_requested = False
@@ -197,6 +200,11 @@ class FilePirateThread(threading.Thread):
 	
 	def rescan(self):
 		self.rescan_requested = True
+
+	def add_negative_filter(self, filter):
+		self.lock.acquire()
+		self.pirates.add_negative_filter(filter)
+		self.lock.release()
 
 class VimAsync(object):
 	"""
@@ -245,6 +253,8 @@ class VimFilePirate(object):
 	"""
 	def __init__(self):
 		# The File Pirate buffer
+		self.config_load()
+
 		self.buf = None
 		self.async = VimAsync()
 		self.fp = None
@@ -261,8 +271,6 @@ class VimFilePirate(object):
 		self.mode = MODE_NOMODE
 
 	def buffer_create(self):
-		self.config_load()
-
 		# Open the window
 		window_height = self.config['g:filepirate_max_results'] + 1
 		vim.command('silent! topleft %dsplit FilePirate' % (window_height))
@@ -456,17 +464,21 @@ class VimFilePirate(object):
 	
 	def search(self, term):
 		" Start a File Pirate search for 'term' "
-		if self.fp is None:
-			self.fp = FilePirateThread(self.config['g:filepirate_max_results'])
-			self.fp.start()
+		fp = self._get_pirate()
 		if not self.searching:
 			self.spinner_character = ' '
 			self.search_start_time = time.time()
 		self.term = term
 		self.draw_search_line()
 		self.async.start(self.search_poll)
-		self.fp.search(self.term)
+		fp.search(self.term)
 		self.searching = True
+
+	def _get_pirate(self):
+		if self.fp is None:
+			self.fp = FilePirateThread(self.config['g:filepirate_max_results'])
+			self.fp.start()
+		return self.fp
 	
 	def filepirate_accept(self, line_number = None):
 		" Close the File Pirate window and switch to the selected file "
@@ -511,9 +523,6 @@ class VimFilePirate(object):
 		if self.term:
 			self.search(self.term)
 	
-	def filepirate_enter_insert_mode(self):
-		pass
-
 	def filepirate_enter_normal_mode(self):
 		self.buffer_unregister_keys()
 		self.mode = MODE_NORMAL
@@ -523,6 +532,9 @@ class VimFilePirate(object):
 		self.buffer_unregister_keys()
 		self.mode = MODE_INSERT
 		self.buffer_register_keys()
+
+	def filepirate_add_negative_filter(self, filter):
+		self._get_pirate().add_negative_filter(filter)
 
 # Singleton
 vim_file_pirate = VimFilePirate()
@@ -539,5 +551,6 @@ filepirate_bs       = vim_file_pirate.filepirate_bs
 filepirate_rescan   = vim_file_pirate.filepirate_rescan
 filepirate_enter_insert_mode = vim_file_pirate.filepirate_enter_insert_mode
 filepirate_enter_normal_mode = vim_file_pirate.filepirate_enter_normal_mode
+filepirate_add_negative_filter = vim_file_pirate.filepirate_add_negative_filter
 
-
+# vim: set sw=4 noet ts=4:

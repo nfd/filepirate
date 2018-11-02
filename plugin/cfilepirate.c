@@ -49,13 +49,18 @@ struct memory_pool
 	uintptr_t size;
 };
 
+struct filter_element {
+	struct filter_element *next;
+	char *s;
+};
+
 struct filepirate {
 	char *root_dirname;
 	uint8_t *files;               // When initialised, points to the main pool.
 	uint8_t *files_end;
 	struct memory_pool main_pool;
-	char **positive_filter;
-	char **negative_filter;
+	struct filter_element *positive_filter;
+	struct filter_element *negative_filter;
 };
 
 /* Memory pool functions */
@@ -148,16 +153,16 @@ static inline void write_uint (struct filepirate *fp, uintptr_t index, unsigned 
 static inline bool passes_filter(struct filepirate *fp, char *name)
 {
 	if (fp->positive_filter) {
-		for (char **filter = fp->positive_filter; *filter; filter++) {
-			if (fnmatch(*filter, name, 0) == 0) {
+		for (struct filter_element *filter = fp->positive_filter; filter; filter = filter->next) {
+			if (fnmatch(filter->s, name, 0) == 0) {
 				return true;
 			}
 		}
 		return false;
 	}
 	if (fp->negative_filter) {
-		for (char **filter = fp->negative_filter; *filter; filter++) {
-			if (fnmatch(*filter, name, 0) == 0) {
+		for (struct filter_element *filter = fp->negative_filter; filter; filter = filter->next) {
+			if (fnmatch(filter->s, name, 0) == 0) {
 				return false;
 			}
 		}
@@ -238,7 +243,7 @@ static uintptr_t fp_init_dir_recurse(struct filepirate *fp)
 	return first;
 }
 
-static bool fp_init_dir(struct filepirate *fp, char *dirname)
+bool fp_init_dir(struct filepirate *fp, char *dirname)
 {
 	int cwd;
 	uintptr_t files_index;
@@ -465,7 +470,7 @@ bool fp_get_candidates(struct filepirate *fp, char *buffer, int buffer_ptr, stru
  * Less dodgy option: include custom fnmatch to take two-string arg as per
  * strstr. */
 
-struct filepirate *fp_init(char *dirname)
+struct filepirate *fp_init()
 {
 	struct filepirate *fp;
 
@@ -479,12 +484,17 @@ struct filepirate *fp_init(char *dirname)
 		return NULL;
 	}
 
-	if (fp_init_dir(fp, dirname) == false) {
-		fp_deinit(fp);
-		return NULL;
-	}
-
 	return fp;
+}
+
+static void deinit_filter(struct filter_element **filter)
+{
+	for(struct filter_element *elem = *filter; elem;) {
+		struct filter_element *tmp = elem->next;
+		free(elem);
+		elem = tmp;
+	}
+	*filter = NULL;
 }
 
 bool fp_deinit(struct filepirate *fp)
@@ -496,12 +506,50 @@ bool fp_deinit(struct filepirate *fp)
 		return true;
 	}
 
+	deinit_filter(&(fp->negative_filter));
+	deinit_filter(&(fp->positive_filter));
+
 	return false;
 }
 
 void fp_filter(struct filepirate *fp, char **positive, char **negative)
 {
-	fp->positive_filter = positive;
-	fp->negative_filter = negative;
+	for(char **s = negative; s; s++) {
+		fp_filter_add_negative(fp, *s);
+	}
+
+	for(char **s = positive; s; s++) {
+		fp_filter_add_positive(fp, *s);
+	}
+}
+
+static void fp_filter_add(char *s, struct filter_element **dst)
+{
+	struct filter_element *elem = malloc(sizeof(struct filter_element));
+	if(!elem)
+		return;
+
+	elem->s = malloc(strlen(s) + 1);
+	if(!elem->s) {
+		free(elem);
+		return;
+	}
+
+	strcpy(elem->s, s);
+
+	elem->next = *dst;
+	*dst = elem;
+}
+
+void fp_filter_add_negative(struct filepirate *fp, char *negative)
+{
+	/* Add 'negative' to the negative filter list. */
+	fp_filter_add(negative, &(fp->negative_filter));
+}
+
+void fp_filter_add_positive(struct filepirate *fp, char *positive)
+{
+	/* Add 'negative' to the negative filter list. */
+	fp_filter_add(positive, &(fp->positive_filter));
 }
 
