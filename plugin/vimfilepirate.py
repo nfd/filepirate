@@ -257,7 +257,7 @@ class VimFilePirate(object):
 		self.config_load()
 
 		self.buf = None
-		self.async = VimAsync()
+		self.vimasync = VimAsync()
 		self.fp = None
 		self.searching = False
 		self.stored_vim_globals = {}
@@ -401,7 +401,7 @@ class VimFilePirate(object):
 		if self.searching is True:
 			if self.fp and self.fp.results is not None:
 				self.spinner_character = ' '
-				self.async.stop()
+				self.vimasync.stop()
 				self.searching = False
 				self.draw_search_line()
 				self.show_results(self.fp.results)
@@ -457,7 +457,7 @@ class VimFilePirate(object):
 	
 	def filepirate_close(self):
 		" Close the window and shut down "
-		self.async.stop()
+		self.vimasync.stop()
 		self.reset_global_options()
 		vim.command("close");
 		vim.command("silent! bunload! #%d" % (self.buf.number))
@@ -475,7 +475,7 @@ class VimFilePirate(object):
 			self.search_start_time = time.time()
 		self.term = term
 		self.draw_search_line()
-		self.async.start(self.search_poll)
+		self.vimasync.start(self.search_poll)
 		fp.search(self.term)
 		self.searching = True
 
@@ -547,7 +547,7 @@ vim_file_pirate = VimFilePirate()
 # Exposed to Vim
 filepirate_open     = vim_file_pirate.filepirate_open
 filepirate_key      = vim_file_pirate.filepirate_key
-filepirate_callback = vim_file_pirate.async.from_vim
+filepirate_callback = vim_file_pirate.vimasync.from_vim
 filepirate_accept   = vim_file_pirate.filepirate_accept
 filepirate_cancel   = vim_file_pirate.filepirate_cancel
 filepirate_up       = vim_file_pirate.filepirate_up
